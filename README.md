@@ -1,86 +1,124 @@
 # Snappy
 
-App thường trú trên menu bar macOS để snap cửa sổ đang focus bằng phím tắt toàn cục.
+**English** | [Tiếng Việt](README.vi.md)
 
-## Tính năng (v1)
+Snappy is a macOS menu bar app for snapping the focused window with global
+keyboard shortcuts.
 
-- **Halves:** trái ½, phải ½, trên ½, dưới ½
-- **Thirds:** ⅓ đầu, ⅓ giữa, ⅓ cuối, ⅔ đầu, ⅔ cuối
-- **Chuyển màn hình:** đẩy cửa sổ sang màn hình kế tiếp/trước, giữ vị trí + kích thước tỉ lệ
-- Phím tắt toàn cục có thể tùy chỉnh (cửa sổ Settings)
-- Hỗ trợ đa màn hình (snap trong màn hình chứa cửa sổ)
-- Icon menu bar custom (template, tự đổi màu theo light/dark)
+## Features
+
+- **Halves:** left half, right half, top half, bottom half
+- **Thirds:** first third, center third, last third, first two thirds, last two thirds
+- **Display movement:** move the active window to the previous or next display while preserving its relative position and size
+- Customizable global shortcuts in the Settings window
+- Multi-display support; snapping is calculated within the display that contains the window
+- Custom template menu bar icon that adapts to light and dark menu bars
 - Launch at login
 
-## Phím tắt mặc định
+## Default Shortcuts
 
-| Hành động                        | Phím             |
-| -------------------------------- | ---------------- |
-| Left / Right / Top / Bottom Half | ⌃⌥ ← / → / ↑ / ↓ |
-| First / Center / Last Third      | ⌃⌥ D / F / G     |
-| First / Last Two Thirds          | ⌃⌥ E / T         |
-| Move to Previous / Next Display  | ⌃⌥⌘ ← / →        |
+| Action | Shortcut |
+| --- | --- |
+| Left / Right / Top / Bottom Half | Control + Option + Arrow |
+| First / Center / Last Third | Control + Option + D / F / G |
+| First / Last Two Thirds | Control + Option + E / T |
+| Move to Previous / Next Display | Control + Option + Command + Left / Right |
 
-Đổi phím trong **menu bar ▸ Settings…**
+Change shortcuts from **menu bar -> Settings...**
 
-## Build & chạy
+## Build And Run
 
 ```bash
-swift test              # chạy unit test cho lõi logic
-./Scripts/bundle.sh     # build release + đóng gói Snappy.app
+swift test              # run unit tests for the core logic
+./Scripts/bundle.sh     # build release and assemble Snappy.app
 open ./Snappy.app
 ```
 
-Lần đầu chạy sẽ hỏi quyền **Accessibility** (System Settings ▸ Privacy &
-Security ▸ Accessibility) — bật Snappy rồi phím tắt sẽ hoạt động.
+On first launch, macOS will ask for **Accessibility** permission. Enable Snappy
+in **System Settings -> Privacy & Security -> Accessibility**, then the global
+shortcuts will work.
 
-## ⚠️ Quan trọng: quyền Accessibility & rebuild
+## Important: Accessibility Permission And Rebuilds
 
-macOS gắn quyền Accessibility với **chữ ký code** của app. Khi ký **ad-hoc**
-(mặc định), mỗi lần `bundle.sh` build lại sẽ tạo chữ ký mới → quyền đã cấp
-**mất hiệu lực**, và snap "im lặng không chạy".
+macOS ties Accessibility permission to the app's **code signature**. When the app
+is signed ad hoc, which is the default in `bundle.sh`, every rebuild gets a new
+signature. That invalidates the previous Accessibility grant, so snapping can
+appear to fail silently.
 
-**Khắc phục ngay (sau mỗi lần build ad-hoc):** vào System Settings ▸ Privacy &
-Security ▸ Accessibility, **xóa Snappy bằng nút “–” rồi thêm lại** bản build mới
-(hoặc tick lại). App cũng sẽ tự hiện hướng dẫn khi bạn bấm phím tắt mà chưa có quyền.
+Quick fix after each ad-hoc build: open **System Settings -> Privacy & Security
+-> Accessibility**, remove Snappy with the minus button, then add the newly built
+app again. The app also shows guidance when a shortcut is pressed without the
+required permission.
 
-**Khắc phục triệt để (khuyến nghị):** ký bằng một self-signed certificate ổn
-định để quyền được giữ qua mọi lần rebuild:
+Recommended fix: sign with a stable self-signed code-signing certificate so the
+permission survives rebuilds.
 
-1. Keychain Access ▸ Certificate Assistant ▸ _Create a Certificate…_
-   - Name: `Snappy Self-Signed`, Type: **Code Signing**
-2. Build với identity đó:
-   ```bash
-   export SNAPPY_SIGN_IDENTITY="Snappy Self-Signed"
-   ./Scripts/bundle.sh
-   ```
-   Cấp quyền Accessibility **một lần** — các lần build sau giữ nguyên quyền.
+1. Open **Keychain Access -> Certificate Assistant -> Create a Certificate...**
+2. Use:
+   - Name: `Snappy Self-Signed`
+   - Type: `Code Signing`
+3. Build with that identity:
 
-## Kiến trúc
+```bash
+export SNAPPY_SIGN_IDENTITY="Snappy Self-Signed"
+./Scripts/bundle.sh
+```
 
-- **`SnappyCore`** — logic thuần, không phụ thuộc nền tảng, có unit test đầy đủ:
-  - `LayoutCalculator` — tính `CGRect` đích cho mỗi layout
-  - `Geometry` — đổi hệ tọa độ AppKit ↔ Accessibility
-  - `DisplayMapper` — remap tỉ lệ cửa sổ sang màn hình khác
-  - `DisplayOrdering` — chọn màn hình kế tiếp/trước (sắp theo vị trí)
-- **`Snappy`** — tầng app (AppKit + Accessibility API + KeyboardShortcuts):
-  - `WindowEngine` (AX get/set), `ScreenProvider`, `WindowManager`,
-    `HotkeyManager`, `MenuBarIcon`, `StatusMenuController`, `SettingsView`, `AppDelegate`
+Grant Accessibility permission once. Future builds signed with the same identity
+will keep the permission.
 
-Thiết kế chi tiết: `docs/superpowers/specs/2026-06-04-macos-window-manager-design.md`
+## Architecture
 
-## Đổi icon
+`SnappyCore` contains pure, platform-independent logic with unit tests:
 
-Thả `MenuBarIcon.png` (hoặc `.pdf`, ảnh đen nền trong suốt) vào thư mục
-`Resources/` rồi `./Scripts/bundle.sh` — app tự dùng ảnh đó thay icon mặc định.
-Chi tiết (kể cả icon app): xem `Resources/README.md`.
+- `LayoutCalculator` computes target `CGRect` values for layouts
+- `Geometry` converts between AppKit and Accessibility coordinate systems
+- `DisplayMapper` maps a window proportionally between displays
+- `DisplayOrdering` selects the previous or next display by position
 
-## Tác giả
+`Snappy` contains the app layer built with AppKit, Accessibility APIs, and
+KeyboardShortcuts:
+
+- `WindowEngine`
+- `ScreenProvider`
+- `WindowManager`
+- `HotkeyManager`
+- `MenuBarIcon`
+- `StatusMenuController`
+- `SettingsView`
+- `AppDelegate`
+
+Detailed design notes:
+[`docs/superpowers/specs/2026-06-04-macos-window-manager-design.md`](docs/superpowers/specs/2026-06-04-macos-window-manager-design.md)
+
+## Custom Icons
+
+Drop `MenuBarIcon.png` or `MenuBarIcon.pdf` into `Resources/`, then rebuild:
+
+```bash
+./Scripts/bundle.sh
+```
+
+The app will use that file instead of the built-in menu bar icon. A black shape
+on a transparent background is recommended because Snappy treats it as a template
+image and adapts it automatically for light and dark menu bars.
+
+For menu bar and app icon details, see [`Resources/README.md`](Resources/README.md).
+
+## Requirements
+
+- macOS 14 or later
+- Swift 5.9 or later
+- Accessibility permission
+
+## Notes
+
+- Snappy runs non-sandboxed because the macOS sandbox prevents controlling other
+  apps' windows through Accessibility APIs.
+- It is intended as a personal utility and is not suitable for Mac App Store
+  distribution in its current form.
+- Dependency: [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts)
+
+## Author
 
 Tony Woo (Ngô Thanh Tùng)
-
-## Ghi chú
-
-- App chạy **non-sandboxed** (sandbox chặn điều khiển cửa sổ app khác qua AX) →
-  không phát hành qua Mac App Store. Phù hợp công cụ cá nhân.
-- Phụ thuộc: [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts).
