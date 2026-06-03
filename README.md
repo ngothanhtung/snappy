@@ -69,6 +69,12 @@ Security ▸ Accessibility, **xóa Magnet bằng nút “–” rồi thêm lạ
 
 Thiết kế chi tiết: `docs/superpowers/specs/2026-06-04-macos-window-manager-design.md`
 
+## Đổi icon
+
+Thả `MenuBarIcon.png` (hoặc `.pdf`, ảnh đen nền trong suốt) vào thư mục
+`Resources/` rồi `./Scripts/bundle.sh` — app tự dùng ảnh đó thay icon mặc định.
+Chi tiết (kể cả icon app): xem `Resources/README.md`.
+
 ## Tác giả
 
 Tony Woo (Ngô Thanh Tùng)

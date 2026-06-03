@@ -18,6 +18,12 @@ mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Magnet"
 
+# Copy any custom resources (e.g. MenuBarIcon.png, AppIcon.icns) into the app.
+if [ -d "$ROOT/Resources" ]; then
+    echo "==> Copying Resources/"
+    cp -R "$ROOT/Resources/." "$APP/Contents/Resources/" 2>/dev/null || true
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
