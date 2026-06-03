@@ -69,6 +69,10 @@ Security ▸ Accessibility, **xóa Magnet bằng nút “–” rồi thêm lạ
 
 Thiết kế chi tiết: `docs/superpowers/specs/2026-06-04-macos-window-manager-design.md`
 
+## Tác giả
+
+Tony Woo (Ngô Thanh Tùng)
+
 ## Ghi chú
 
 - App chạy **non-sandboxed** (sandbox chặn điều khiển cửa sổ app khác qua AX) →

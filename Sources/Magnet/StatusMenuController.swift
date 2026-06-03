@@ -26,6 +26,11 @@ final class StatusMenuController: NSObject {
         settings.target = self
         menu.addItem(settings)
 
+        let about = NSMenuItem(title: "About Magnet", action: #selector(showAbout),
+                               keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+
         menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit Magnet", action: #selector(quit),
                                   keyEquivalent: "q")
@@ -67,6 +72,21 @@ final class StatusMenuController: NSObject {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func showAbout() {
+        let credits = NSAttributedString(
+            string: "Author: Tony Woo (Ngô Thanh Tùng)",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ]
+        )
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "Magnet",
+            .credits: credits,
+        ])
     }
 
     @objc private func quit() {
