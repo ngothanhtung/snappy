@@ -15,13 +15,15 @@ enum AccessibilityPermission {
     /// and offers to open System Settings. Returns the current trust state.
     @discardableResult
     static func ensure(showSystemPrompt: Bool = false) -> Bool {
+        if isTrusted { return true }
         if showSystemPrompt {
+            // The native macOS dialog (also registers Magnet in the list).
             let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true]
-            if AXIsProcessTrustedWithOptions(options as CFDictionary) { return true }
-        } else if isTrusted {
-            return true
+            AXIsProcessTrustedWithOptions(options as CFDictionary)
+        } else {
+            // Our own guidance, used on the hotkey path.
+            presentAlert()
         }
-        presentAlert()
         return false
     }
 
