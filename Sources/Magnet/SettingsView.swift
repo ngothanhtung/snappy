@@ -8,8 +8,13 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Shortcuts") {
-                ForEach(LayoutBinding.all, id: \.name) { binding in
+            Section("Snap") {
+                ForEach(Bindings.layouts, id: \.name) { binding in
+                    KeyboardShortcuts.Recorder(binding.title, name: binding.name)
+                }
+            }
+            Section("Displays") {
+                ForEach(Bindings.displays, id: \.name) { binding in
                     KeyboardShortcuts.Recorder(binding.title, name: binding.name)
                 }
             }

@@ -1,12 +1,12 @@
 import KeyboardShortcuts
 
-/// Wires each global shortcut to its layout action.
+/// Wires each global shortcut to its action.
 @MainActor
 enum HotkeyManager {
     static func registerAll() {
-        for binding in LayoutBinding.all {
+        for binding in Bindings.all {
             KeyboardShortcuts.onKeyDown(for: binding.name) {
-                WindowManager.apply(binding.layout)
+                WindowManager.perform(binding.action)
             }
         }
     }

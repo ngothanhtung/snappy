@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import MagnetCore
 
 /// Owns the menu bar item and its menu, and hosts the settings window.
 @MainActor
@@ -10,24 +9,16 @@ final class StatusMenuController: NSObject {
 
     func install() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "rectangle.split.2x1",
-                                   accessibilityDescription: "Magnet")
-        }
+        statusItem.button?.image = MenuBarIcon.image()
         statusItem.menu = buildMenu()
     }
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        for binding in LayoutBinding.all {
-            let item = NSMenuItem(title: binding.title,
-                                  action: #selector(triggerLayout(_:)),
-                                  keyEquivalent: "")
-            item.target = self
-            item.representedObject = binding.layout.rawValue
-            menu.addItem(item)
-        }
+        addActionItems(Bindings.layouts, to: menu)
+        menu.addItem(.separator())
+        addActionItems(Bindings.displays, to: menu)
 
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings),
@@ -43,10 +34,22 @@ final class StatusMenuController: NSObject {
         return menu
     }
 
-    @objc private func triggerLayout(_ sender: NSMenuItem) {
+    private func addActionItems(_ bindings: [ActionBinding], to menu: NSMenu) {
+        for binding in bindings {
+            let item = NSMenuItem(title: binding.title,
+                                  action: #selector(triggerAction(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            // Look the binding up again at click time via its shortcut name.
+            item.representedObject = binding.name.rawValue
+            menu.addItem(item)
+        }
+    }
+
+    @objc private func triggerAction(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String,
-              let layout = WindowLayout(rawValue: raw) else { return }
-        WindowManager.apply(layout)
+              let binding = Bindings.all.first(where: { $0.name.rawValue == raw }) else { return }
+        WindowManager.perform(binding.action)
     }
 
     @objc private func openSettings() {
