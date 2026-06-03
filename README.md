@@ -34,6 +34,28 @@ open ./Magnet.app
 Lần đầu chạy sẽ hỏi quyền **Accessibility** (System Settings ▸ Privacy &
 Security ▸ Accessibility) — bật Magnet rồi phím tắt sẽ hoạt động.
 
+## ⚠️ Quan trọng: quyền Accessibility & rebuild
+
+macOS gắn quyền Accessibility với **chữ ký code** của app. Khi ký **ad-hoc**
+(mặc định), mỗi lần `bundle.sh` build lại sẽ tạo chữ ký mới → quyền đã cấp
+**mất hiệu lực**, và snap "im lặng không chạy".
+
+**Khắc phục ngay (sau mỗi lần build ad-hoc):** vào System Settings ▸ Privacy &
+Security ▸ Accessibility, **xóa Magnet bằng nút “–” rồi thêm lại** bản build mới
+(hoặc tick lại). App cũng sẽ tự hiện hướng dẫn khi bạn bấm phím tắt mà chưa có quyền.
+
+**Khắc phục triệt để (khuyến nghị):** ký bằng một self-signed certificate ổn
+định để quyền được giữ qua mọi lần rebuild:
+
+1. Keychain Access ▸ Certificate Assistant ▸ *Create a Certificate…*
+   - Name: `Magnet Self-Signed`, Type: **Code Signing**
+2. Build với identity đó:
+   ```bash
+   export MAGNET_SIGN_IDENTITY="Magnet Self-Signed"
+   ./Scripts/bundle.sh
+   ```
+   Cấp quyền Accessibility **một lần** — các lần build sau giữ nguyên quyền.
+
 ## Kiến trúc
 
 - **`MagnetCore`** — logic thuần, không phụ thuộc nền tảng, có unit test đầy đủ:

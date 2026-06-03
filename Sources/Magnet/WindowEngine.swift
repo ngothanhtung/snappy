@@ -34,7 +34,10 @@ enum WindowEngine {
     static func setFrame(_ frame: CGRect, for window: AXUIElement) {
         setPoint(frame.origin, window, kAXPositionAttribute)
         setSize(frame.size, window, kAXSizeAttribute)
-        setPoint(frame.origin, window, kAXPositionAttribute)
+        let result = setPoint(frame.origin, window, kAXPositionAttribute)
+        if result != .success {
+            NSLog("Magnet: failed to set window frame (AXError \(result.rawValue))")
+        }
     }
 
     // MARK: - AXValue helpers
@@ -57,15 +60,17 @@ enum WindowEngine {
         return size
     }
 
-    private static func setPoint(_ point: CGPoint, _ element: AXUIElement, _ attr: String) {
+    @discardableResult
+    private static func setPoint(_ point: CGPoint, _ element: AXUIElement, _ attr: String) -> AXError {
         var p = point
-        guard let value = AXValueCreate(.cgPoint, &p) else { return }
-        AXUIElementSetAttributeValue(element, attr as CFString, value)
+        guard let value = AXValueCreate(.cgPoint, &p) else { return .failure }
+        return AXUIElementSetAttributeValue(element, attr as CFString, value)
     }
 
-    private static func setSize(_ size: CGSize, _ element: AXUIElement, _ attr: String) {
+    @discardableResult
+    private static func setSize(_ size: CGSize, _ element: AXUIElement, _ attr: String) -> AXError {
         var s = size
-        guard let value = AXValueCreate(.cgSize, &s) else { return }
-        AXUIElementSetAttributeValue(element, attr as CFString, value)
+        guard let value = AXValueCreate(.cgSize, &s) else { return .failure }
+        return AXUIElementSetAttributeValue(element, attr as CFString, value)
     }
 }

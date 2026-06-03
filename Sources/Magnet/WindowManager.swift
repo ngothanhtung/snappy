@@ -7,6 +7,8 @@ import MagnetCore
 enum WindowManager {
 
     static func perform(_ action: AppAction) {
+        // Without Accessibility trust, AX calls fail silently. Surface it.
+        guard AccessibilityPermission.ensure() else { return }
         switch action {
         case .layout(let layout):        apply(layout)
         case .moveToDisplay(let direction): moveToDisplay(direction)

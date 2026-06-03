@@ -37,9 +37,29 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "==> Ad-hoc code signing"
-# Stable signature keeps the Accessibility grant across rebuilds.
-codesign --force --deep --sign - "$APP"
+echo "==> Code signing"
+# IMPORTANT: macOS ties the Accessibility (TCC) grant to the code signature.
+# Ad-hoc signing (`--sign -`) produces a NEW cdhash on every rebuild, which
+# INVALIDATES the previously granted permission — so window control silently
+# stops working after each rebuild until you re-grant.
+#
+# To keep the grant stable across rebuilds, sign with a stable self-signed
+# identity and pass its name via MAGNET_SIGN_IDENTITY. One-time setup:
+#
+#   Keychain Access ▸ Certificate Assistant ▸ Create a Certificate…
+#     Name: "Magnet Self-Signed"   Type: Code Signing
+#   then: export MAGNET_SIGN_IDENTITY="Magnet Self-Signed"
+#
+IDENTITY="${MAGNET_SIGN_IDENTITY:-}"
+if [ -n "$IDENTITY" ]; then
+    echo "    Signing with stable identity: $IDENTITY"
+    codesign --force --options runtime --sign "$IDENTITY" "$APP"
+else
+    echo "    WARNING: no MAGNET_SIGN_IDENTITY set — using ad-hoc signature."
+    echo "    The Accessibility grant will NOT survive rebuilds; you must"
+    echo "    re-grant permission after each build (see README)."
+    codesign --force --sign - "$APP"
+fi
 
 echo "==> Done: $APP"
 echo "    Launch with: open \"$APP\""
