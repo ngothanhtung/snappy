@@ -31,10 +31,10 @@ enum AccessibilityPermission {
         let alert = NSAlert()
         alert.messageText = "Accessibility permission needed"
         alert.informativeText = """
-        Magnet needs Accessibility access to move and resize windows.
+        Snappy needs Accessibility access to move and resize windows.
 
         Open System Settings ▸ Privacy & Security ▸ Accessibility and enable \
-        Magnet. If Magnet is already listed, remove it with “–” and add this \
+        Snappy. If Snappy is already listed, remove it with “–” and add this \
         build again — a rebuilt app must be re-granted.
         """
         alert.addButton(withTitle: "Open System Settings")

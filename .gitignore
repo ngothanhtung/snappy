@@ -1,6 +1,7 @@
 .build/
 .swiftpm/
 Magnet.app/
+Snappy.app/
 *.xcodeproj
 DerivedData/
 .DS_Store

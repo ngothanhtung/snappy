@@ -26,13 +26,13 @@ final class StatusMenuController: NSObject {
         settings.target = self
         menu.addItem(settings)
 
-        let about = NSMenuItem(title: "About Magnet", action: #selector(showAbout),
+        let about = NSMenuItem(title: "About Snappy", action: #selector(showAbout),
                                keyEquivalent: "")
         about.target = self
         menu.addItem(about)
 
         menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "Quit Magnet", action: #selector(quit),
+        let quitItem = NSMenuItem(title: "Quit Snappy", action: #selector(quit),
                                   keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
@@ -64,7 +64,7 @@ final class StatusMenuController: NSObject {
                 styleMask: [.titled, .closable],
                 backing: .buffered, defer: false
             )
-            window.title = "Magnet Settings"
+            window.title = "Snappy Settings"
             window.contentView = NSHostingView(rootView: SettingsView())
             window.isReleasedWhenClosed = false
             window.center()
@@ -76,7 +76,7 @@ final class StatusMenuController: NSObject {
 
     @objc private func showAbout() {
         let credits = NSAttributedString(
-            string: "Author: Tony Woo (Ngô Thanh Tùng)",
+            string: "Author: Tony Woo (ngothanhtung.it@gmail.com)",
             attributes: [
                 .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
                 .foregroundColor: NSColor.secondaryLabelColor,
@@ -84,7 +84,7 @@ final class StatusMenuController: NSObject {
         )
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: [
-            .applicationName: "Magnet",
+            .applicationName: "Snappy",
             .credits: credits,
         ])
     }

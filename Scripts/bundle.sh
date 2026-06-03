@@ -4,8 +4,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/Magnet.app"
-BUNDLE_ID="com.local.magnet"
+APP="$ROOT/Snappy.app"          # user-facing app name
+BUNDLE_ID="com.local.magnet"    # internal identity (kept stable for TCC)
 
 echo "==> Building release binary"
 swift build -c release --product Magnet
@@ -13,7 +13,7 @@ swift build -c release --product Magnet
 BIN="$(swift build -c release --product Magnet --show-bin-path)/Magnet"
 
 echo "==> Assembling $APP"
-rm -rf "$APP"
+rm -rf "$APP" "$ROOT/Magnet.app" # drop any legacy bundle from before the rename
 mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Magnet"
@@ -46,8 +46,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>            <string>Magnet</string>
-    <key>CFBundleDisplayName</key>     <string>Magnet</string>
+    <key>CFBundleName</key>            <string>Snappy</string>
+    <key>CFBundleDisplayName</key>     <string>Snappy</string>
     <key>CFBundleExecutable</key>      <string>Magnet</string>
     <key>CFBundleIdentifier</key>      <string>$BUNDLE_ID</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>

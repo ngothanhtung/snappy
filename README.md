@@ -1,4 +1,7 @@
-# Magnet
+# Snappy
+
+> Tên hiển thị của app là **Snappy**. Tên project/target SwiftPM nội bộ vẫn là
+> `Magnet` (giữ ổn định cho bundle-id và quyền Accessibility).
 
 App thường trú trên menu bar macOS để snap cửa sổ đang focus bằng phím tắt toàn cục.
 
@@ -27,12 +30,12 @@ App thường trú trên menu bar macOS để snap cửa sổ đang focus bằng
 
 ```bash
 swift test              # chạy unit test cho lõi logic
-./Scripts/bundle.sh     # build release + đóng gói Magnet.app
-open ./Magnet.app
+./Scripts/bundle.sh     # build release + đóng gói Snappy.app
+open ./Snappy.app
 ```
 
 Lần đầu chạy sẽ hỏi quyền **Accessibility** (System Settings ▸ Privacy &
-Security ▸ Accessibility) — bật Magnet rồi phím tắt sẽ hoạt động.
+Security ▸ Accessibility) — bật Snappy rồi phím tắt sẽ hoạt động.
 
 ## ⚠️ Quan trọng: quyền Accessibility & rebuild
 
@@ -41,7 +44,7 @@ macOS gắn quyền Accessibility với **chữ ký code** của app. Khi ký **
 **mất hiệu lực**, và snap "im lặng không chạy".
 
 **Khắc phục ngay (sau mỗi lần build ad-hoc):** vào System Settings ▸ Privacy &
-Security ▸ Accessibility, **xóa Magnet bằng nút “–” rồi thêm lại** bản build mới
+Security ▸ Accessibility, **xóa Snappy bằng nút “–” rồi thêm lại** bản build mới
 (hoặc tick lại). App cũng sẽ tự hiện hướng dẫn khi bạn bấm phím tắt mà chưa có quyền.
 
 **Khắc phục triệt để (khuyến nghị):** ký bằng một self-signed certificate ổn
