@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/Snappy.app"
-BUNDLE_ID="com.local.snappy"
+BUNDLE_ID="com.ngothanhtung.snappy"
 
 echo "==> Building release binary"
 swift build -c release --product Snappy

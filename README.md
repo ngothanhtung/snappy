@@ -14,12 +14,12 @@ App thường trú trên menu bar macOS để snap cửa sổ đang focus bằng
 
 ## Phím tắt mặc định
 
-| Hành động | Phím |
-|-----------|------|
+| Hành động                        | Phím             |
+| -------------------------------- | ---------------- |
 | Left / Right / Top / Bottom Half | ⌃⌥ ← / → / ↑ / ↓ |
-| First / Center / Last Third | ⌃⌥ D / F / G |
-| First / Last Two Thirds | ⌃⌥ E / T |
-| Move to Previous / Next Display | ⌃⌥⌘ ← / → |
+| First / Center / Last Third      | ⌃⌥ D / F / G     |
+| First / Last Two Thirds          | ⌃⌥ E / T         |
+| Move to Previous / Next Display  | ⌃⌥⌘ ← / →        |
 
 Đổi phím trong **menu bar ▸ Settings…**
 
@@ -47,7 +47,7 @@ Security ▸ Accessibility, **xóa Snappy bằng nút “–” rồi thêm lạ
 **Khắc phục triệt để (khuyến nghị):** ký bằng một self-signed certificate ổn
 định để quyền được giữ qua mọi lần rebuild:
 
-1. Keychain Access ▸ Certificate Assistant ▸ *Create a Certificate…*
+1. Keychain Access ▸ Certificate Assistant ▸ _Create a Certificate…_
    - Name: `Snappy Self-Signed`, Type: **Code Signing**
 2. Build với identity đó:
    ```bash
