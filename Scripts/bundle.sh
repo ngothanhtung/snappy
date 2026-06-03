@@ -18,10 +18,27 @@ mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Magnet"
 
-# Copy any custom resources (e.g. MenuBarIcon.png, AppIcon.icns) into the app.
+# Copy any custom resources (e.g. MenuBarIcon.png) into the app.
 if [ -d "$ROOT/Resources" ]; then
     echo "==> Copying Resources/"
     cp -R "$ROOT/Resources/." "$APP/Contents/Resources/" 2>/dev/null || true
+fi
+
+# App icon: Finder needs an .icns. Drop a square PNG at Resources/AppIcon.png
+# (ideally 1024×1024) and it is converted automatically here.
+ICON_PLIST=""
+APP_ICON_PNG="$ROOT/Resources/AppIcon.png"
+if [ -f "$APP_ICON_PNG" ]; then
+    echo "==> Generating AppIcon.icns from AppIcon.png"
+    ICONSET="$(mktemp -d)/AppIcon.iconset"
+    mkdir -p "$ICONSET"
+    for s in 16 32 128 256 512; do
+        sips -z "$s" "$s"             "$APP_ICON_PNG" --out "$ICONSET/icon_${s}x${s}.png"    >/dev/null
+        sips -z "$((s*2))" "$((s*2))" "$APP_ICON_PNG" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+    done
+    iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+    rm -f "$APP/Contents/Resources/AppIcon.png" # ship only the .icns
+    ICON_PLIST="    <key>CFBundleIconFile</key>        <string>AppIcon</string>"
 fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -39,6 +56,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key>  <string>14.0</string>
     <!-- Agent app: no Dock icon, menu-bar only. -->
     <key>LSUIElement</key>             <true/>
+$ICON_PLIST
 </dict>
 </plist>
 PLIST
@@ -70,3 +88,7 @@ fi
 echo "==> Done: $APP"
 echo "    Launch with: open \"$APP\""
 echo "    First launch will prompt for Accessibility permission."
+if [ -n "$ICON_PLIST" ]; then
+    touch "$APP" # nudge Finder to refresh the icon
+    echo "    If Finder still shows the old icon, run: killall Finder"
+fi

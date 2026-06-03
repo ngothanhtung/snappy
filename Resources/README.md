@@ -19,9 +19,17 @@ Resources/MenuBarIcon.png   → build lại: ./Scripts/bundle.sh
 
 ## Đổi icon app (Finder / About panel)
 
-1. Đặt **`AppIcon.icns`** vào thư mục này.
-2. Thêm vào `Info.plist` (trong `Scripts/bundle.sh`) khóa:
-   `<key>CFBundleIconFile</key> <string>AppIcon</string>`
+Chỉ cần đặt **`AppIcon.png`** (ảnh vuông, nên 1024×1024) vào thư mục này rồi
+build:
 
-> Lưu ý: Magnet là agent app (`LSUIElement`) nên không có icon trên Dock;
-> icon app chỉ xuất hiện ở Finder và About panel.
+```
+Resources/AppIcon.png   → ./Scripts/bundle.sh
+```
+
+`bundle.sh` tự convert PNG → `AppIcon.icns` (qua `sips` + `iconutil`) và gắn
+`CFBundleIconFile` vào Info.plist. Bạn **không cần** tự tạo `.icns`.
+
+> - Finder yêu cầu `.icns` nên PNG sẽ được convert tự động — bạn chỉ cung cấp PNG.
+> - Nếu Finder vẫn hiện icon cũ (do cache), chạy: `killall Finder`.
+> - Magnet là agent app (`LSUIElement`) nên không có icon trên Dock; icon app
+>   chỉ xuất hiện ở Finder và About panel.
