@@ -1,8 +1,5 @@
 # Snappy
 
-> Tên hiển thị của app là **Snappy**. Tên project/target SwiftPM nội bộ vẫn là
-> `Magnet` (giữ ổn định cho bundle-id và quyền Accessibility).
-
 App thường trú trên menu bar macOS để snap cửa sổ đang focus bằng phím tắt toàn cục.
 
 ## Tính năng (v1)
@@ -51,22 +48,22 @@ Security ▸ Accessibility, **xóa Snappy bằng nút “–” rồi thêm lạ
 định để quyền được giữ qua mọi lần rebuild:
 
 1. Keychain Access ▸ Certificate Assistant ▸ *Create a Certificate…*
-   - Name: `Magnet Self-Signed`, Type: **Code Signing**
+   - Name: `Snappy Self-Signed`, Type: **Code Signing**
 2. Build với identity đó:
    ```bash
-   export MAGNET_SIGN_IDENTITY="Magnet Self-Signed"
+   export SNAPPY_SIGN_IDENTITY="Snappy Self-Signed"
    ./Scripts/bundle.sh
    ```
    Cấp quyền Accessibility **một lần** — các lần build sau giữ nguyên quyền.
 
 ## Kiến trúc
 
-- **`MagnetCore`** — logic thuần, không phụ thuộc nền tảng, có unit test đầy đủ:
+- **`SnappyCore`** — logic thuần, không phụ thuộc nền tảng, có unit test đầy đủ:
   - `LayoutCalculator` — tính `CGRect` đích cho mỗi layout
   - `Geometry` — đổi hệ tọa độ AppKit ↔ Accessibility
   - `DisplayMapper` — remap tỉ lệ cửa sổ sang màn hình khác
   - `DisplayOrdering` — chọn màn hình kế tiếp/trước (sắp theo vị trí)
-- **`Magnet`** — tầng app (AppKit + Accessibility API + KeyboardShortcuts):
+- **`Snappy`** — tầng app (AppKit + Accessibility API + KeyboardShortcuts):
   - `WindowEngine` (AX get/set), `ScreenProvider`, `WindowManager`,
     `HotkeyManager`, `MenuBarIcon`, `StatusMenuController`, `SettingsView`, `AppDelegate`
 

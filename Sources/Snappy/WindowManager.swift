@@ -1,8 +1,8 @@
 import AppKit
-import MagnetCore
+import SnappyCore
 
 /// Orchestrates window actions: find the focused window + its screen, compute
-/// the target frame with `MagnetCore`, and apply it.
+/// the target frame with `SnappyCore`, and apply it.
 @MainActor
 enum WindowManager {
 

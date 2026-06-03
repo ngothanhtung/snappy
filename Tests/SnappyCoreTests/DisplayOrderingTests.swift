@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import MagnetCore
+@testable import SnappyCore
 
 /// `DisplayOrdering` picks the next/previous screen, ordered left-to-right
 /// (then top-to-bottom), wrapping around. Pure — operates on frames.

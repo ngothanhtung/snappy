@@ -1,5 +1,5 @@
 import KeyboardShortcuts
-import MagnetCore
+import SnappyCore
 
 /// One global shortcut name per action, with sensible defaults
 /// (Ctrl+Option based, similar to Magnet/Rectangle).

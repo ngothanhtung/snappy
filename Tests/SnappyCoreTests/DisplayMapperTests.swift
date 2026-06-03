@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import MagnetCore
+@testable import SnappyCore
 
 /// `DisplayMapper` remaps a window's frame from one screen's usable area onto
 /// another's, preserving relative position and size. Coordinate-system

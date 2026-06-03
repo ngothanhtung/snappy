@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "Magnet",
+    name: "Snappy",
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
     ],
     targets: [
         // Pure, dependency-free core logic — fully unit tested.
-        .target(name: "MagnetCore"),
+        .target(name: "SnappyCore"),
         .testTarget(
-            name: "MagnetCoreTests",
-            dependencies: ["MagnetCore"]
+            name: "SnappyCoreTests",
+            dependencies: ["SnappyCore"]
         ),
         // The menubar agent app.
         .executableTarget(
-            name: "Magnet",
+            name: "Snappy",
             dependencies: [
-                "MagnetCore",
+                "SnappyCore",
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
             ]
         ),

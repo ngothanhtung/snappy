@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import MagnetCore
+@testable import SnappyCore
 
 /// All frames are expressed in a top-left origin coordinate space (x → right,
 /// y → down), matching the Accessibility API. `LayoutCalculator` is pure.

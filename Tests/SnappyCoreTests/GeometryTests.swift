@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import MagnetCore
+@testable import SnappyCore
 
 /// AppKit global coords: origin bottom-left of primary screen, y grows up.
 /// Accessibility coords: origin top-left of primary screen, y grows down.

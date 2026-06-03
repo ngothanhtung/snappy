@@ -4,19 +4,19 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/Snappy.app"          # user-facing app name
-BUNDLE_ID="com.local.magnet"    # internal identity (kept stable for TCC)
+APP="$ROOT/Snappy.app"
+BUNDLE_ID="com.local.snappy"
 
 echo "==> Building release binary"
-swift build -c release --product Magnet
+swift build -c release --product Snappy
 
-BIN="$(swift build -c release --product Magnet --show-bin-path)/Magnet"
+BIN="$(swift build -c release --product Snappy --show-bin-path)/Snappy"
 
 echo "==> Assembling $APP"
 rm -rf "$APP" "$ROOT/Magnet.app" # drop any legacy bundle from before the rename
 mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/Magnet"
+cp "$BIN" "$APP/Contents/MacOS/Snappy"
 
 # Copy any custom resources (e.g. MenuBarIcon.png) into the app.
 if [ -d "$ROOT/Resources" ]; then
@@ -48,7 +48,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleName</key>            <string>Snappy</string>
     <key>CFBundleDisplayName</key>     <string>Snappy</string>
-    <key>CFBundleExecutable</key>      <string>Magnet</string>
+    <key>CFBundleExecutable</key>      <string>Snappy</string>
     <key>CFBundleIdentifier</key>      <string>$BUNDLE_ID</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleShortVersionString</key> <string>1.0</string>
@@ -68,18 +68,18 @@ echo "==> Code signing"
 # stops working after each rebuild until you re-grant.
 #
 # To keep the grant stable across rebuilds, sign with a stable self-signed
-# identity and pass its name via MAGNET_SIGN_IDENTITY. One-time setup:
+# identity and pass its name via SNAPPY_SIGN_IDENTITY. One-time setup:
 #
 #   Keychain Access ▸ Certificate Assistant ▸ Create a Certificate…
-#     Name: "Magnet Self-Signed"   Type: Code Signing
-#   then: export MAGNET_SIGN_IDENTITY="Magnet Self-Signed"
+#     Name: "Snappy Self-Signed"   Type: Code Signing
+#   then: export SNAPPY_SIGN_IDENTITY="Snappy Self-Signed"
 #
-IDENTITY="${MAGNET_SIGN_IDENTITY:-}"
+IDENTITY="${SNAPPY_SIGN_IDENTITY:-}"
 if [ -n "$IDENTITY" ]; then
     echo "    Signing with stable identity: $IDENTITY"
     codesign --force --options runtime --sign "$IDENTITY" "$APP"
 else
-    echo "    WARNING: no MAGNET_SIGN_IDENTITY set — using ad-hoc signature."
+    echo "    WARNING: no SNAPPY_SIGN_IDENTITY set — using ad-hoc signature."
     echo "    The Accessibility grant will NOT survive rebuilds; you must"
     echo "    re-grant permission after each build (see README)."
     codesign --force --sign - "$APP"

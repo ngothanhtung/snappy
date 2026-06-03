@@ -3,7 +3,7 @@ import ApplicationServices
 
 /// Thin wrapper over the Accessibility API: read and write the frame of the
 /// frontmost app's focused window. Kept as small as possible — all geometry
-/// lives in `MagnetCore`.
+/// lives in `SnappyCore`.
 @MainActor
 enum WindowEngine {
 
@@ -36,7 +36,7 @@ enum WindowEngine {
         setSize(frame.size, window, kAXSizeAttribute)
         let result = setPoint(frame.origin, window, kAXPositionAttribute)
         if result != .success {
-            NSLog("Magnet: failed to set window frame (AXError \(result.rawValue))")
+            NSLog("Snappy: failed to set window frame (AXError \(result.rawValue))")
         }
     }
 

@@ -38,7 +38,7 @@ struct SettingsView: View {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            NSLog("Magnet: launch-at-login change failed: \(error)")
+            NSLog("Snappy: launch-at-login change failed: \(error)")
             // Reflect the real state if the change didn't take.
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
