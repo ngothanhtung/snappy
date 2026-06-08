@@ -31,6 +31,18 @@ final class LayoutCalculatorTests: XCTestCase {
                        CGRect(x: 0, y: 450, width: 1440, height: 450))
     }
 
+    // MARK: Maximize — fills the whole usable screen rect
+
+    func testMaximize() {
+        XCTAssertEqual(LayoutCalculator.frame(for: .maximize, in: screen),
+                       CGRect(x: 0, y: 0, width: 1440, height: 900))
+    }
+
+    func testMaximizeRespectsOrigin() {
+        let offset = CGRect(x: 100, y: 50, width: 1440, height: 900)
+        XCTAssertEqual(LayoutCalculator.frame(for: .maximize, in: offset), offset)
+    }
+
     // MARK: Thirds (1440 / 3 = 480 exactly)
 
     func testFirstThird() {

@@ -5,6 +5,8 @@ public enum WindowLayout: String, CaseIterable, Sendable {
     case leftHalf, rightHalf, topHalf, bottomHalf
     case firstThird, centerThird, lastThird
     case firstTwoThirds, lastTwoThirds
+    /// Fill the whole usable screen (not macOS full-screen mode).
+    case maximize
 }
 
 /// Pure geometry: given a usable screen rect (top-left origin), compute the
@@ -39,6 +41,8 @@ public enum LayoutCalculator {
             return CGRect(x: x, y: y, width: t2, height: h)
         case .lastTwoThirds:
             return CGRect(x: x + t1, y: y, width: w - t1, height: h)
+        case .maximize:
+            return screen
         }
     }
 }

@@ -24,17 +24,20 @@ final class StatusMenuController: NSObject {
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings),
                                   keyEquivalent: ",")
         settings.target = self
+        settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
         menu.addItem(settings)
 
         let about = NSMenuItem(title: "About Snappy", action: #selector(showAbout),
                                keyEquivalent: "")
         about.target = self
+        about.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "About Snappy")
         menu.addItem(about)
 
         menu.addItem(.separator())
         let quitItem = NSMenuItem(title: "Quit Snappy", action: #selector(quit),
                                   keyEquivalent: "q")
         quitItem.target = self
+        quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit Snappy")
         menu.addItem(quitItem)
         return menu
     }
@@ -45,6 +48,8 @@ final class StatusMenuController: NSObject {
                                   action: #selector(triggerAction(_:)),
                                   keyEquivalent: "")
             item.target = self
+            item.image = NSImage(systemSymbolName: binding.symbol,
+                                 accessibilityDescription: binding.title)
             // Look the binding up again at click time via its shortcut name.
             item.representedObject = binding.name.rawValue
             menu.addItem(item)

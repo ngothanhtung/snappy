@@ -75,11 +75,23 @@ echo "==> Code signing"
 #   then: export SNAPPY_SIGN_IDENTITY="Snappy Self-Signed"
 #
 IDENTITY="${SNAPPY_SIGN_IDENTITY:-}"
+# If no identity was given, auto-pick an installed code-signing identity so we
+# don't silently fall back to ad-hoc — ad-hoc changes the signature on every
+# rebuild and revokes the Accessibility grant. Override with SNAPPY_SIGN_IDENTITY.
+if [ -z "$IDENTITY" ]; then
+    # Prefer the stable self-signed "Snappy" cert (long expiry, not OS-trusted
+    # so it won't appear in the -v list); else the first valid identity.
+    IDENTITY="$(security find-identity -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(Snappy[^"]*\)".*/\1/p' | head -1)"
+    [ -z "$IDENTITY" ] && IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)"
+    [ -n "$IDENTITY" ] && echo "    Auto-detected signing identity: $IDENTITY"
+fi
 if [ -n "$IDENTITY" ]; then
     echo "    Signing with stable identity: $IDENTITY"
     codesign --force --options runtime --sign "$IDENTITY" "$APP"
 else
-    echo "    WARNING: no SNAPPY_SIGN_IDENTITY set — using ad-hoc signature."
+    echo "    WARNING: no code-signing identity found — using ad-hoc signature."
     echo "    The Accessibility grant will NOT survive rebuilds; you must"
     echo "    re-grant permission after each build (see README)."
     codesign --force --sign - "$APP"
