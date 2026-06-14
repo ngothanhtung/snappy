@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import KeyboardShortcuts
 
 /// Owns the menu bar item and its menu, and hosts the settings window.
 @MainActor
@@ -50,8 +51,8 @@ final class StatusMenuController: NSObject {
             item.target = self
             item.image = NSImage(systemSymbolName: binding.symbol,
                                  accessibilityDescription: binding.title)
-            // Look the binding up again at click time via its shortcut name.
             item.representedObject = binding.name.rawValue
+            item.setShortcut(for: binding.name)
             menu.addItem(item)
         }
     }
