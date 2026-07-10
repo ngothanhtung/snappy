@@ -8,7 +8,8 @@ final class RegionCaptureController {
     private var overlayWindow: RegionOverlayWindow?
 
     func start() {
-        guard CGPreflightScreenCaptureAccess() else {
+        guard overlayWindow == nil else { return }
+        guard CGRequestScreenCaptureAccess() else {
             presentPermissionAlert()
             return
         }
