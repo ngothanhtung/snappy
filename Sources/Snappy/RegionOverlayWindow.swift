@@ -80,7 +80,7 @@ private enum DragHandle: CaseIterable {
 
 // MARK: - Overlay view
 
-final class RegionOverlayView: NSView {
+fileprivate final class RegionOverlayView: NSView {
     // Set by RegionOverlayWindow to convert view coords → AppKit global
     var windowOrigin: CGPoint = .zero
     var onRegionSelected: ((CGRect) -> Void)?
@@ -329,7 +329,7 @@ final class RegionOverlayView: NSView {
             height: textSize.height + 4
         )
         if labelRect.maxY > bounds.maxY - 4 {
-            labelRect.origin.y = rect.minY - labelRect.height - 6
+            labelRect.origin.y = max(4, rect.minY - labelRect.height - 6)
         }
         let bg = NSBezierPath(roundedRect: labelRect, xRadius: 4, yRadius: 4)
         NSColor.black.withAlphaComponent(0.65).setFill()
@@ -357,6 +357,7 @@ final class RegionOverlayView: NSView {
         let w: CGFloat = 180, h: CGFloat = 36, gap: CGFloat = 16
         var y = rect.minY - gap - h
         if y < 4 { y = rect.maxY + gap }
+        if y + h > bounds.maxY - 4 { y = bounds.maxY - h - 4 }
         let x = max(4, min(rect.midX - w / 2, bounds.maxX - w - 4))
         return CGRect(x: x, y: y, width: w, height: h)
     }
