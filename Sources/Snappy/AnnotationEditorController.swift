@@ -1,5 +1,14 @@
 import AppKit
 
+// MARK: - Appearance-aware toolbar background
+
+private final class ToolbarView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.windowBackgroundColor.setFill()
+        dirtyRect.fill()
+    }
+}
+
 // MARK: - Color swatch button
 
 final class ColorSwatchButton: NSButton {
@@ -21,8 +30,8 @@ final class ColorSwatchButton: NSButton {
 
     override func draw(_ dirtyRect: NSRect) {
         if isActive {
-            // White ring + inset color circle to indicate active
-            NSColor.white.setFill()
+            // labelColor ring adapts to both light and dark mode
+            NSColor.labelColor.setFill()
             NSBezierPath(ovalIn: bounds).fill()
             swatchColor.setFill()
             NSBezierPath(ovalIn: bounds.insetBy(dx: 3, dy: 3)).fill()
@@ -45,6 +54,11 @@ final class AnnotationEditorController {
     private var swatchButtons: [ColorSwatchButton] = []
 
     func open(image: NSImage) {
+        window?.close()
+        window = nil
+        canvas = nil
+        swatchButtons = []
+
         // Scale image to fit visible screen, never upscale
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let maxSize = screen.visibleFrame.insetBy(dx: 40, dy: 40).size
@@ -90,9 +104,7 @@ final class AnnotationEditorController {
     }
 
     private func buildToolbar(width: CGFloat, canvas: AnnotationCanvasView) -> NSView {
-        let bar = NSView()
-        bar.wantsLayer = true
-        bar.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        let bar = ToolbarView()
 
         // Bottom border line
         let sep = NSBox()
