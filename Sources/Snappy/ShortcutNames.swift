@@ -18,12 +18,14 @@ extension KeyboardShortcuts.Name {
     // Move the focused window to the next/previous display.
     static let nextDisplay     = Self("nextDisplay",     default: .init(.rightArrow, modifiers: [.control, .option, .command]))
     static let previousDisplay = Self("previousDisplay", default: .init(.leftArrow,  modifiers: [.control, .option, .command]))
+    static let captureRegion   = Self("captureRegion")
 }
 
 /// An action a shortcut (or menu item) can trigger.
 enum AppAction {
     case layout(WindowLayout)
     case moveToDisplay(DisplayOrdering.Direction)
+    case captureRegion
 }
 
 /// Pairs each action with its shortcut name and a human-readable title.
@@ -55,5 +57,10 @@ enum Bindings {
         .init(name: .previousDisplay, title: "Move to Previous Display", action: .moveToDisplay(.previous), symbol: "arrow.left.to.line"),
     ]
 
-    static var all: [ActionBinding] { layouts + displays }
+    static let capture: [ActionBinding] = [
+        .init(name: .captureRegion, title: "Capture Region",
+              action: .captureRegion, symbol: "camera.viewfinder"),
+    ]
+
+    static var all: [ActionBinding] { layouts + displays + capture }
 }

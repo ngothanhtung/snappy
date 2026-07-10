@@ -20,9 +20,11 @@ final class StatusMenuController: NSObject {
         addActionItems(Bindings.layouts, to: menu)
         menu.addItem(.separator())
         addActionItems(Bindings.displays, to: menu)
+        menu.addItem(.separator())
+        addActionItems(Bindings.capture, to: menu)
 
         menu.addItem(.separator())
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings),
+        let settings = NSMenuItem(title: "Settings\u{2026}", action: #selector(openSettings),
                                   keyEquivalent: ",")
         settings.target = self
         settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")

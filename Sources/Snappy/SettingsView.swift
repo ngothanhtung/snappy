@@ -18,6 +18,11 @@ struct SettingsView: View {
                     KeyboardShortcuts.Recorder(binding.title, name: binding.name)
                 }
             }
+            Section("Capture") {
+                ForEach(Bindings.capture, id: \.name) { binding in
+                    KeyboardShortcuts.Recorder(binding.title, name: binding.name)
+                }
+            }
             Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
