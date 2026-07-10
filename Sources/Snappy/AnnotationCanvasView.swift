@@ -264,8 +264,21 @@ final class AnnotationCanvasView: NSView {
     }
 
     private func renderToImage() -> NSImage? {
-        guard let rep = bitmapImageRepForCachingDisplay(in: bounds) else { return nil }
-        cacheDisplay(in: bounds, to: rep)
+        let scale = window?.backingScaleFactor ?? 1
+        let pixelW = Int((bounds.width * scale).rounded())
+        let pixelH = Int((bounds.height * scale).rounded())
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: pixelW, pixelsHigh: pixelH,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return nil }
+        rep.size = bounds.size  // preserve logical size so DPI metadata is correct
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        NSGraphicsContext.current?.cgContext.scaleBy(x: scale, y: scale)
+        draw(bounds)
+        NSGraphicsContext.restoreGraphicsState()
         let img = NSImage(size: bounds.size)
         img.addRepresentation(rep)
         return img

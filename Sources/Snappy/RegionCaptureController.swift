@@ -9,9 +9,9 @@ final class RegionCaptureController {
 
     func start() {
         guard overlayWindow == nil else { return }
-        guard CGRequestScreenCaptureAccess() else {
-            presentPermissionAlert()
-            return
+        if !CGPreflightScreenCaptureAccess() {
+            CGRequestScreenCaptureAccess()
+            return   // system TCC sheet handles feedback; don't show our own alert too
         }
         showOverlay()
     }

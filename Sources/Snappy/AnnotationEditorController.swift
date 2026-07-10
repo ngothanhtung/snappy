@@ -60,7 +60,7 @@ final class AnnotationEditorController {
         swatchButtons = []
 
         // Scale image to fit visible screen, never upscale
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
         let maxSize = screen.visibleFrame.insetBy(dx: 40, dy: 40).size
         let scale = min(maxSize.width / image.size.width,
                         maxSize.height / image.size.height, 1.0)
@@ -84,6 +84,7 @@ final class AnnotationEditorController {
         )
         win.title = "Snappy \u{2014} Annotate"
         win.isReleasedWhenClosed = false
+        win.contentMinSize = CGSize(width: 650, height: winSize.height)
 
         let content = NSView(frame: CGRect(origin: .zero, size: winSize))
         win.contentView = content
