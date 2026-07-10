@@ -45,7 +45,8 @@ final class AnnotationCanvasView: NSView {
         // Commit any active text field first
         if activeTextField != nil {
             commitTextEntry()
-            return
+            if activeTool == .text { return }
+            // fall through: let the click begin a drag for arrow/rect/circle
         }
 
         if activeTool == .text {
@@ -223,18 +224,27 @@ final class AnnotationCanvasView: NSView {
     }
 
     @objc func undoLast() {
+        if activeTextField != nil {
+            // Cancel in-progress text entry without committing
+            activeTextField?.removeFromSuperview()
+            activeTextField = nil
+            window?.makeFirstResponder(self)
+            return
+        }
         guard !annotations.isEmpty else { return }
         annotations.removeLast()
         needsDisplay = true
     }
 
     @objc func copyToClipboard() {
+        commitTextEntry()
         guard let img = renderToImage() else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([img])
     }
 
     @objc func saveImage() {
+        commitTextEntry()
         guard let img = renderToImage() else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
@@ -243,7 +253,14 @@ final class AnnotationCanvasView: NSView {
         guard let tiff = img.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
               let data = rep.representation(using: .png, properties: [:]) else { return }
-        try? data.write(to: url)
+        do {
+            try data.write(to: url)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Save failed"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
     }
 
     private func renderToImage() -> NSImage? {
