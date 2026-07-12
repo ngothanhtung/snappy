@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Snappy is a macOS menu-bar agent app (no Dock icon, `LSUIElement`) that snaps the
 focused window to halves/thirds and moves it between displays via global keyboard
 shortcuts. Built with Swift Package Manager (not an Xcode project), targeting
-macOS 14+.
+macOS 14+. Also supports **Region Capture** — drag-select a screen region, then
+annotate it with arrows/rectangles/circles/text before copying or saving as PNG.
 
 ## Commands
 
@@ -91,5 +92,38 @@ which surfaces guidance instead of failing silently when untrusted.
   "Magnet" — the project was renamed to Snappy; bundle ID is `com.ngothanhtung.snappy`.
 - Custom menu-bar icon: drop `MenuBarIcon.png`/`.pdf` in `Resources/`; app icon:
   `Resources/AppIcon.png` (converted to `.icns` by `bundle.sh`).
-- Design notes: `docs/superpowers/specs/2026-06-04-macos-window-manager-design.md`.
+- Design notes: `docs/superpowers/specs/2026-06-04-macos-window-manager-design.md`,
+  plus region-capture flow in `docs/superpowers/specs/2026-07-10-region-capture-annotation-design.md`.
+
+## Region Capture + Annotation pipeline
+
+User-facing flow: trigger via shortcut or menu → `RegionCaptureController` →
+borderless `RegionOverlayWindow` (Phase 1 drag-select, Phase 2 resize via 8
+handles + Cancel/Capture pill, ESC to cancel) → `DispatchQueue.main.asyncAfter
+0.15s` (let overlay vanish from compositor) → `SCScreenshotManager.captureImage`
+→ crop to selection → hand `NSImage` to `AnnotationEditorController` →
+borderless-ish editor window with hand-laid toolbar (segmented tool picker, 5
+`ColorSwatchButton`s, `NSStepper` width, Undo/Copy/Save…) above an
+`AnnotationCanvasView` that draws the image + per-tool annotations and exports
+via `NSPasteboard` or `NSSavePanel` PNG.
+
+All NSLogs emitted by these components are prefixed `Snappy:` — filter process
+`Snappy` in Console.app to debug capture/annotation live (`CGWindowListCreateImage
+returned nil` is the smoking gun for the API obsolescence below; `ScreenCaptureKit
+cgImage WxH` / `cropped CGImage WxH` confirm the new pipeline ran).
+
+## Screen-capture APIs — DO NOT use the legacy ones
+
+`CGWindowListCreateImage` and `CGDisplayCreateImage(_:rect:)` are both
+`SCREEN_CAPTURE_OBSOLETE(10.6,14.4,15.0)` — they still compile under the
+`macOS(.v14)` SPM deployment target but **return nil at runtime on macOS 15+**.
+Use `ScreenCaptureKit`'s `SCScreenshotManager.captureImage(contentFilter:
+configuration:completionHandler:)` instead (macOS 14.0+). If you need to
+target a sub-rect of a display, capture the full display first then
+`cgImage.cropping(to:)` to display-local pixel coords. See
+`RegionCaptureController.captureWithScreenCaptureKit(quartzRect:logicalSize:)`
+for the full pattern (bridges `SCShareableContent.excludingDesktopWindows` async
+plus `SCScreenshotManager` callback into a synchronous call via `Task.detached`,
+`withCheckedThrowingContinuation`, and `DispatchSemaphore` — safe because the
+completion fires on a background queue, never main).
 ```

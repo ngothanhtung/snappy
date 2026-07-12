@@ -23,6 +23,18 @@ final class StatusMenuController: NSObject {
         menu.addItem(.separator())
         addActionItems(Bindings.capture, to: menu)
 
+        let openForEditing = NSMenuItem(
+            title: "Open File in Annotate\u{2026}",
+            action: #selector(openFileInAnnotate),
+            keyEquivalent: ""
+        )
+        openForEditing.target = self
+        openForEditing.image = NSImage(
+            systemSymbolName: "photo.badge.arrow.down",
+            accessibilityDescription: "Open File in Annotate"
+        )
+        menu.addItem(openForEditing)
+
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings\u{2026}", action: #selector(openSettings),
                                   keyEquivalent: ",")
@@ -80,6 +92,10 @@ final class StatusMenuController: NSObject {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func openFileInAnnotate() {
+        AnnotationEditorController.shared.chooseFileAndOpen()
     }
 
     @objc private func showAbout() {

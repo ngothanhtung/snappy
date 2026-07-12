@@ -56,6 +56,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key>  <string>14.0</string>
     <!-- Agent app: no Dock icon, menu-bar only. -->
     <key>LSUIElement</key>             <true/>
+    <!-- Required by ScreenCaptureKit on macOS 14+ for region capture. -->
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Snappy captures a selected screen region for annotation, copying, and saving as PNG.</string>
 $ICON_PLIST
 </dict>
 </plist>

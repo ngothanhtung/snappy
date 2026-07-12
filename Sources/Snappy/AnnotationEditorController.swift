@@ -1,11 +1,16 @@
 import AppKit
+import OSLog
+import UniformTypeIdentifiers
 
 // MARK: - Appearance-aware toolbar background
 
 private final class ToolbarView: NSView {
     override func draw(_ dirtyRect: NSRect) {
+        // clipsToBounds defaults to false on macOS 14+, so dirtyRect can extend
+        // over the whole window; filling it unclipped paints over the sibling
+        // canvas below. Fill only within our own bounds.
         NSColor.windowBackgroundColor.setFill()
-        dirtyRect.fill()
+        bounds.intersection(dirtyRect).fill()
     }
 }
 
@@ -47,21 +52,58 @@ final class ColorSwatchButton: NSButton {
 @MainActor
 final class AnnotationEditorController {
     static let shared = AnnotationEditorController()
+    private let logger = Logger(subsystem: "com.ngothanhtung.snappy", category: "AnnotationEditor")
     private init() {}
 
     private var window: NSWindow?
     private var canvas: AnnotationCanvasView?
     private var swatchButtons: [ColorSwatchButton] = []
 
-    func open(image: NSImage) {
+    func open(fileURL: URL) throws {
+        guard let image = NSImage(contentsOf: fileURL) else {
+            throw NSError(
+                domain: "Snappy", code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "Could not read the saved screenshot."]
+            )
+        }
+        logger.info("Loaded annotation image from \(fileURL.path, privacy: .public)")
+        open(image: image, fileURL: fileURL)
+    }
+
+    func chooseFileAndOpen() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.message = "Choose an image to edit in Annotate"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try open(fileURL: url)
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
+        }
+    }
+
+    func open(image: NSImage, fileURL: URL? = nil,
+              on preferredScreen: NSScreen? = nil) {
+        logger.info("Opening editor for image \(image.size.width, privacy: .public)x\(image.size.height, privacy: .public)")
+        NSLog("Snappy: AnnotationEditorController.open image.size=%@", NSStringFromSize(image.size))
         window?.close()
         window = nil
         canvas = nil
         swatchButtons = []
 
         // Scale image to fit visible screen, never upscale
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return }
-        let maxSize = screen.visibleFrame.insetBy(dx: 40, dy: 40).size
+        guard let screen = preferredScreen ?? NSScreen.main ?? NSScreen.screens.first else {
+            logger.error("Cannot open editor because no NSScreen is available")
+            return
+        }
+        let toolbarH: CGFloat = 52
+        let visibleFrame = screen.visibleFrame.insetBy(dx: 40, dy: 40)
+        let maxSize = CGSize(width: visibleFrame.width,
+                             height: max(1, visibleFrame.height - toolbarH))
         let scale = min(maxSize.width / image.size.width,
                         maxSize.height / image.size.height, 1.0)
         let displaySize = CGSize(
@@ -69,12 +111,19 @@ final class AnnotationEditorController {
             height: (image.size.height * scale).rounded()
         )
 
-        let canvasView = AnnotationCanvasView(image: image)
-        canvasView.frame = CGRect(origin: .zero, size: displaySize)
+        let minimumToolbarWidth: CGFloat = 920
+        let contentWidth = max(displaySize.width, minimumToolbarWidth)
+
+        let canvasView = AnnotationCanvasView(image: image, fileURL: fileURL)
+        canvasView.frame = CGRect(
+            x: ((contentWidth - displaySize.width) / 2).rounded(),
+            y: 0,
+            width: displaySize.width,
+            height: displaySize.height
+        )
         self.canvas = canvasView
 
-        let toolbarH: CGFloat = 52
-        let winSize = CGSize(width: displaySize.width,
+        let winSize = CGSize(width: contentWidth,
                              height: displaySize.height + toolbarH)
         let win = NSWindow(
             contentRect: CGRect(origin: .zero, size: winSize),
@@ -84,24 +133,31 @@ final class AnnotationEditorController {
         )
         win.title = "Snappy \u{2014} Annotate"
         win.isReleasedWhenClosed = false
-        win.contentMinSize = CGSize(width: 650, height: winSize.height)
+        win.level = .floating
+        win.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
 
         let content = NSView(frame: CGRect(origin: .zero, size: winSize))
         win.contentView = content
 
-        canvasView.autoresizingMask = [.width, .height]
         content.addSubview(canvasView)
 
-        let toolbar = buildToolbar(width: displaySize.width, canvas: canvasView)
+        let toolbar = buildToolbar(width: contentWidth, canvas: canvasView)
         toolbar.frame = CGRect(x: 0, y: displaySize.height,
-                               width: displaySize.width, height: toolbarH)
+                               width: contentWidth, height: toolbarH)
         toolbar.autoresizingMask = [.width, .minYMargin]
         content.addSubview(toolbar)
 
         self.window = win
-        win.center()
+        let screenFrame = screen.visibleFrame
+        let origin = CGPoint(
+            x: screenFrame.midX - win.frame.width / 2,
+            y: screenFrame.midY - win.frame.height / 2
+        )
+        win.setFrameOrigin(origin)
         NSApp.activate(ignoringOtherApps: true)
         win.makeKeyAndOrderFront(nil)
+        win.orderFrontRegardless()
+        logger.info("Editor window ordered front on display \(screen.localizedName, privacy: .public); frame=\(NSStringFromRect(win.frame), privacy: .public), visible=\(win.isVisible, privacy: .public), key=\(win.isKeyWindow, privacy: .public)")
     }
 
     private func buildToolbar(width: CGFloat, canvas: AnnotationCanvasView) -> NSView {
@@ -116,21 +172,46 @@ final class AnnotationEditorController {
 
         var x: CGFloat = 12
 
-        // Tool selector (arrow / rect / circle / text)
+        // Tool selector (select / arrow / rect / circle / text / stamp / step)
         let toolImages: [NSImage] = [
+            NSImage(systemSymbolName: "cursorarrow",            accessibilityDescription: "Select")!,
             NSImage(systemSymbolName: "arrow.up.right",         accessibilityDescription: "Arrow")!,
             NSImage(systemSymbolName: "rectangle",             accessibilityDescription: "Rectangle")!,
             NSImage(systemSymbolName: "circle",                accessibilityDescription: "Circle")!,
-            NSImage(systemSymbolName: "character.cursor.ibeam", accessibilityDescription: "Text")!,
+            NSImage(systemSymbolName: "character.cursor.ibeam", accessibilityDescription: "Label")!,
+            NSImage(systemSymbolName: "face.smiling",           accessibilityDescription: "Stamp")!,
+            NSImage(systemSymbolName: "1.circle",               accessibilityDescription: "Step")!,
         ]
         let toolCtrl = NSSegmentedControl(
             images: toolImages, trackingMode: .selectOne,
             target: canvas, action: #selector(AnnotationCanvasView.changeTool(_:))
         )
-        toolCtrl.selectedSegment = 0
-        toolCtrl.frame = CGRect(x: x, y: 11, width: 140, height: 30)
+        toolCtrl.selectedSegment = AnnotationTool.arrow.rawValue
+        toolCtrl.frame = CGRect(x: x, y: 11, width: 245, height: 30)
         bar.addSubview(toolCtrl)
-        x += 152
+        x += 253
+
+        // Arrow style picker
+        let stylePopup = NSPopUpButton(frame: CGRect(x: x, y: 12, width: 76, height: 28))
+        for title in ["\u{2192}", "\u{2194}", "\u{2014}", "\u{25CF}\u{2192}"] {
+            stylePopup.addItem(withTitle: title)
+        }
+        stylePopup.target = canvas
+        stylePopup.action = #selector(AnnotationCanvasView.changeArrowStyle(_:))
+        stylePopup.setAccessibilityLabel("Arrow Style")
+        bar.addSubview(stylePopup)
+        x += 84
+
+        // Emoji stamp picker
+        let emojiPopup = NSPopUpButton(frame: CGRect(x: x, y: 12, width: 64, height: 28))
+        for emoji in AnnotationCanvasView.stampEmojis {
+            emojiPopup.addItem(withTitle: emoji)
+        }
+        emojiPopup.target = canvas
+        emojiPopup.action = #selector(AnnotationCanvasView.changeEmoji(_:))
+        emojiPopup.setAccessibilityLabel("Stamp Emoji")
+        bar.addSubview(emojiPopup)
+        x += 72
 
         addVSep(to: bar, at: x); x += 16
 
@@ -188,7 +269,7 @@ final class AnnotationEditorController {
 
     @objc private func swatchClicked(_ sender: NSButton) {
         guard let swatch = sender as? ColorSwatchButton else { return }
-        canvas?.activeColor = swatch.swatchColor
+        canvas?.applyColor(swatch.swatchColor)
         swatchButtons.forEach { $0.isActive = ($0 === swatch) }
     }
 

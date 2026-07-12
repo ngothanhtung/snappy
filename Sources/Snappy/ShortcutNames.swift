@@ -19,6 +19,7 @@ extension KeyboardShortcuts.Name {
     static let nextDisplay     = Self("nextDisplay",     default: .init(.rightArrow, modifiers: [.control, .option, .command]))
     static let previousDisplay = Self("previousDisplay", default: .init(.leftArrow,  modifiers: [.control, .option, .command]))
     static let captureRegion   = Self("captureRegion")
+    static let captureRegionAndEdit = Self("captureRegionAndEdit")
 }
 
 /// An action a shortcut (or menu item) can trigger.
@@ -26,6 +27,7 @@ enum AppAction {
     case layout(WindowLayout)
     case moveToDisplay(DisplayOrdering.Direction)
     case captureRegion
+    case captureRegionAndEdit
 }
 
 /// Pairs each action with its shortcut name and a human-readable title.
@@ -60,6 +62,8 @@ enum Bindings {
     static let capture: [ActionBinding] = [
         .init(name: .captureRegion, title: "Capture Region",
               action: .captureRegion, symbol: "camera.viewfinder"),
+        .init(name: .captureRegionAndEdit, title: "Capture Region & Edit",
+              action: .captureRegionAndEdit, symbol: "pencil.and.outline"),
     ]
 
     static var all: [ActionBinding] { layouts + displays + capture }

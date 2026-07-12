@@ -145,7 +145,8 @@ fileprivate final class RegionOverlayView: NSView {
         switch phase {
         case .selecting:
             if selectionRect.width > 5, selectionRect.height > 5 {
-                phase = .confirming
+                phase = .idle
+                fireCapture()
             } else {
                 selectionRect = .zero
                 phase = .idle

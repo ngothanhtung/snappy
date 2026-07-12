@@ -15,7 +15,9 @@ enum WindowManager {
             guard AccessibilityPermission.ensure() else { return }
             moveToDisplay(direction)
         case .captureRegion:
-            RegionCaptureController.shared.start()
+            RegionCaptureController.shared.start(destination: .preview)
+        case .captureRegionAndEdit:
+            RegionCaptureController.shared.start(destination: .annotate)
         }
     }
 
