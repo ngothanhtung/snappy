@@ -17,10 +17,14 @@ final class StatusMenuController: NSObject {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
+        // Same grouping as the Settings sections.
+        menu.addItem(.sectionHeader(title: "Snap"))
         addActionItems(Bindings.layouts, to: menu)
         menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Displays"))
         addActionItems(Bindings.displays, to: menu)
         menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Capture"))
         addActionItems(Bindings.capture, to: menu)
 
         let openForEditing = NSMenuItem(

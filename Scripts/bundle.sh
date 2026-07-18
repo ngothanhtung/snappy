@@ -24,6 +24,14 @@ if [ -d "$ROOT/Resources" ]; then
     cp -R "$ROOT/Resources/." "$APP/Contents/Resources/" 2>/dev/null || true
 fi
 
+# Google Drive OAuth credentials: kept out of git (Secrets/ is gitignored),
+# baked into the app bundle at build time so users don't have to paste them.
+SECRETS_PLIST="$ROOT/Secrets/GoogleDriveCredentials.plist"
+if [ -f "$SECRETS_PLIST" ]; then
+    echo "==> Embedding GoogleDriveCredentials.plist"
+    cp "$SECRETS_PLIST" "$APP/Contents/Resources/GoogleDriveCredentials.plist"
+fi
+
 # App icon: Finder needs an .icns. Drop a square PNG at Resources/AppIcon.png
 # (ideally 1024×1024) and it is converted automatically here.
 ICON_PLIST=""

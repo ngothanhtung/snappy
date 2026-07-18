@@ -13,11 +13,11 @@ final class RegionCaptureController {
     private let logger = Logger(subsystem: "com.ngothanhtung.snappy", category: "RegionCapture")
     private init() {}
 
-    private var overlayWindow: RegionOverlayWindow?
+    private var overlayWindows: [RegionOverlayWindow] = []
     private var destination: Destination = .preview
 
     func start(destination: Destination) {
-        guard overlayWindow == nil else { return }
+        guard overlayWindows.isEmpty else { return }
         self.destination = destination
         if !CGPreflightScreenCaptureAccess() {
             CGRequestScreenCaptureAccess()
@@ -45,23 +45,36 @@ final class RegionCaptureController {
         }
     }
 
+    // One overlay per screen: a single window cannot span displays when
+    // "Displays have separate Spaces" is enabled (the macOS default).
     private func showOverlay() {
-        let win = RegionOverlayWindow()
-        overlayWindow = win
-        win.onRegionSelected = { [weak self] rect in self?.captureRegion(rect) }
-        win.onCancelled = { [weak self] in
-            self?.overlayWindow?.orderOut(nil)
-            self?.overlayWindow = nil
+        let windows = NSScreen.screens.map { RegionOverlayWindow(screen: $0) }
+        overlayWindows = windows
+        for win in windows {
+            win.onRegionSelected = { [weak self] rect in self?.captureRegion(rect) }
+            win.onCancelled = { [weak self] in self?.closeOverlays() }
+            win.onSelectionStarted = { [weak self, weak win] in
+                self?.overlayWindows.forEach { other in
+                    if other !== win { other.clearSelection() }
+                }
+            }
         }
         NSApp.activate(ignoringOtherApps: true)
-        win.makeKeyAndOrderFront(nil)
+        let mouse = NSEvent.mouseLocation
+        for win in windows { win.orderFrontRegardless() }
+        let keyWindow = windows.first { $0.frame.contains(mouse) } ?? windows.first
+        keyWindow?.makeKey()
+    }
+
+    private func closeOverlays() {
+        overlayWindows.forEach { $0.orderOut(nil) }
+        overlayWindows.removeAll()
     }
 
     // rect is in AppKit global coordinates (y-up, origin = bottom-left of primary screen)
     private func captureRegion(_ rectInAppKit: CGRect) {
         let captureDestination = destination
-        overlayWindow?.orderOut(nil)
-        overlayWindow = nil
+        closeOverlays()
         NSLog("Snappy: captureRegion queued for rect %@", NSStringFromRect(rectInAppKit))
         // Wait for the overlay to vanish from the compositor before capturing
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
@@ -164,6 +177,8 @@ final class RegionCaptureController {
             throw NSError(domain: "Snappy", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "Downloads folder is unavailable."])
         }
+        let folder = downloads.appendingPathComponent("Snappy", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         guard let tiff = image.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: tiff),
               let png = bitmap.representation(using: .png, properties: [:]) else {
@@ -175,7 +190,7 @@ final class RegionCaptureController {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss.SSS"
         let filename = "Snappy \(formatter.string(from: Date())).png"
-        let url = downloads.appendingPathComponent(filename)
+        let url = folder.appendingPathComponent(filename)
         try png.write(to: url, options: .atomic)
         return url
     }

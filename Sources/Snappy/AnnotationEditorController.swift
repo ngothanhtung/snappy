@@ -111,7 +111,7 @@ final class AnnotationEditorController {
             height: (image.size.height * scale).rounded()
         )
 
-        let minimumToolbarWidth: CGFloat = 920
+        let minimumToolbarWidth: CGFloat = 1090
         let contentWidth = max(displaySize.width, minimumToolbarWidth)
 
         let canvasView = AnnotationCanvasView(image: image, fileURL: fileURL)
@@ -264,7 +264,122 @@ final class AnnotationEditorController {
             x += 70
         }
 
+        // Upload to Google Drive (handled by the controller, not the canvas)
+        let driveBtn = NSButton(title: "Drive", target: self, action: #selector(uploadToDrive(_:)))
+        driveBtn.bezelStyle = .rounded
+        driveBtn.image = NSImage(systemSymbolName: "icloud.and.arrow.up",
+                                 accessibilityDescription: "Upload to Google Drive")
+        driveBtn.imagePosition = .imageLeading
+        driveBtn.frame = CGRect(x: x, y: 12, width: 84, height: 28)
+        driveBtn.toolTip = "Upload to Google Drive"
+        bar.addSubview(driveBtn)
+        x += 92
+
+        // Upload to a GitHub repository
+        let githubBtn = NSButton(title: "GitHub", target: self, action: #selector(uploadToGitHub(_:)))
+        githubBtn.bezelStyle = .rounded
+        githubBtn.image = NSImage(systemSymbolName: "arrow.up.forward.square",
+                                  accessibilityDescription: "Upload to GitHub")
+        githubBtn.imagePosition = .imageLeading
+        githubBtn.frame = CGRect(x: x, y: 12, width: 92, height: 28)
+        githubBtn.toolTip = "Upload to GitHub repository"
+        bar.addSubview(githubBtn)
+
         return bar
+    }
+
+    private var isUploading = false
+
+    @objc private func uploadToDrive(_ sender: NSButton) {
+        guard !isUploading else { return }
+        guard GoogleDriveClient.shared.isConfigured else {
+            let alert = NSAlert()
+            alert.messageText = "Google Drive is not set up"
+            alert.informativeText = """
+                Open Snappy Settings and enter your OAuth Client ID and Client Secret.
+
+                Create them in Google Cloud Console \u{25B8} APIs & Services \u{25B8} \
+                Credentials \u{25B8} Create Credentials \u{25B8} OAuth client ID \
+                (type: Desktop app), with the Google Drive API enabled.
+                """
+            alert.runModal()
+            return
+        }
+        runUpload(sender: sender, serviceName: "Google Drive", openTitle: "Open in Drive") {
+            try await GoogleDriveClient.shared.upload(png: $0, filename: $1)
+        }
+    }
+
+    @objc private func uploadToGitHub(_ sender: NSButton) {
+        guard !isUploading else { return }
+        guard GitHubUploader.shared.isConfigured else {
+            let alert = NSAlert()
+            alert.messageText = "GitHub upload is not set up"
+            alert.informativeText = """
+                Open Snappy Settings and enter the repository (owner/name) plus a \
+                personal access token.
+
+                Create a fine-grained token at github.com \u{25B8} Settings \u{25B8} \
+                Developer settings \u{25B8} Personal access tokens, limited to that \
+                repository with Contents read & write permission.
+                """
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+            return
+        }
+        runUpload(sender: sender, serviceName: "GitHub", openTitle: "Open Raw File") {
+            try await GitHubUploader.shared.upload(png: $0, filename: $1)
+        }
+    }
+
+    /// Shared export → upload → result-alert flow for the upload buttons.
+    private func runUpload(sender: NSButton, serviceName: String, openTitle: String,
+                           task: @escaping (Data, String) async throws -> URL?) {
+        guard let canvas, let png = canvas.exportPNGData() else {
+            NSLog("Snappy: %@ upload aborted, could not render PNG", serviceName)
+            return
+        }
+        let filename = canvas.exportFilename
+        NSLog("Snappy: %@ upload starting for %@ (%ld bytes)", serviceName, filename, png.count)
+
+        isUploading = true
+        sender.isEnabled = false
+        let originalTitle = sender.title
+        sender.title = "Uploading\u{2026}"
+        Task { @MainActor in
+            defer {
+                isUploading = false
+                sender.isEnabled = true
+                sender.title = originalTitle
+            }
+            do {
+                let link = try await task(png, filename)
+                NSLog("Snappy: %@ upload succeeded, link=%@",
+                      serviceName, link?.absoluteString ?? "none")
+                let alert = NSAlert()
+                alert.messageText = "Uploaded to \(serviceName)"
+                alert.informativeText = filename
+                if link != nil {
+                    alert.addButton(withTitle: openTitle)
+                    alert.addButton(withTitle: "OK")
+                } else {
+                    alert.addButton(withTitle: "OK")
+                }
+                // Re-activate: a browser used for OAuth consent may be
+                // frontmost, which would leave the alert buried behind it.
+                NSApp.activate(ignoringOtherApps: true)
+                if alert.runModal() == .alertFirstButtonReturn, let link {
+                    NSWorkspace.shared.open(link)
+                }
+            } catch {
+                NSLog("Snappy: %@ upload failed: %@", serviceName, String(describing: error))
+                let alert = NSAlert()
+                alert.messageText = "Upload failed"
+                alert.informativeText = error.localizedDescription
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
+        }
     }
 
     @objc private func swatchClicked(_ sender: NSButton) {

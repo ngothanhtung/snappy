@@ -574,6 +574,22 @@ final class AnnotationCanvasView: NSView {
         }
     }
 
+    /// Flattened PNG of the image + annotations, for external destinations
+    /// (e.g. Google Drive upload).
+    func exportPNGData() -> Data? {
+        commitTextEntry()
+        guard let img = renderToImage(),
+              let tiff = img.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let data = rep.representation(using: .png, properties: [:]) else { return nil }
+        return data
+    }
+
+    /// Filename to use when exporting to external destinations.
+    var exportFilename: String {
+        fileURL?.lastPathComponent ?? "Snappy \(Int(Date().timeIntervalSince1970)).png"
+    }
+
     private func renderToImage() -> NSImage? {
         let sourceRep = image.representations.max {
             ($0.pixelsWide * $0.pixelsHigh) < ($1.pixelsWide * $1.pixelsHigh)

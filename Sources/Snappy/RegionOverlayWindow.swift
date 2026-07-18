@@ -5,12 +5,15 @@ import AppKit
 final class RegionOverlayWindow: NSWindow {
     var onRegionSelected: ((CGRect) -> Void)?
     var onCancelled: (() -> Void)?
+    /// Fired on mouse-down so sibling overlays (other screens) can clear their selection.
+    var onSelectionStarted: (() -> Void)?
 
-    init() {
-        // Cover the entire virtual desktop (all screens)
-        let virtualDesktop = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+    // One overlay window per screen: with "Displays have separate Spaces" a single
+    // window cannot span displays, so a virtual-desktop-sized overlay only ever
+    // appears on one screen.
+    init(screen: NSScreen) {
         super.init(
-            contentRect: virtualDesktop,
+            contentRect: screen.frame,
             styleMask: .borderless,
             backing: .buffered,
             defer: false
@@ -23,15 +26,20 @@ final class RegionOverlayWindow: NSWindow {
         acceptsMouseMovedEvents = true
 
         let view = RegionOverlayView(
-            frame: CGRect(origin: .zero, size: virtualDesktop.size)
+            frame: CGRect(origin: .zero, size: screen.frame.size)
         )
-        view.windowOrigin = virtualDesktop.origin
+        view.windowOrigin = screen.frame.origin
         view.onRegionSelected = { [weak self] rect in self?.onRegionSelected?(rect) }
         view.onCancelled = { [weak self] in
             self?.orderOut(nil)
             self?.onCancelled?()
         }
+        view.onSelectionStarted = { [weak self] in self?.onSelectionStarted?() }
         contentView = view
+    }
+
+    func clearSelection() {
+        (contentView as? RegionOverlayView)?.reset()
     }
 
     override var canBecomeKey: Bool { true }
@@ -85,6 +93,7 @@ fileprivate final class RegionOverlayView: NSView {
     var windowOrigin: CGPoint = .zero
     var onRegionSelected: ((CGRect) -> Void)?
     var onCancelled: (() -> Void)?
+    var onSelectionStarted: (() -> Void)?
 
     private var phase: OverlayPhase = .idle
     private var selectionRect: CGRect = .zero
@@ -109,7 +118,18 @@ fileprivate final class RegionOverlayView: NSView {
 
     // MARK: - Mouse events
 
+    func reset() {
+        phase = .idle
+        selectionRect = .zero
+        startPoint = nil
+        activeHandle = nil
+        isMoving = false
+        dragStartPoint = nil
+        needsDisplay = true
+    }
+
     override func mouseDown(with event: NSEvent) {
+        onSelectionStarted?()
         let point = convert(event.locationInWindow, from: nil)
         switch phase {
         case .idle, .selecting:
