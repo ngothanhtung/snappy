@@ -108,7 +108,7 @@ struct Annotation {
 
 final class AnnotationCanvasView: NSView {
     private let image: NSImage
-    private let fileURL: URL?
+    let fileURL: URL?
     private var annotations: [Annotation] = []
     private var undoStack: [[Annotation]] = []
     private var dragStart: CGPoint?
@@ -546,6 +546,15 @@ final class AnnotationCanvasView: NSView {
         guard let img = renderToImage() else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([img])
+    }
+
+    /// Copies the flattened image to the clipboard, then deletes the backing
+    /// file from disk (e.g. the auto-saved capture in ~/Downloads). Copy
+    /// always happens; the throw only reflects the delete step.
+    func copyAndDelete() throws {
+        copyToClipboard()
+        guard let fileURL else { return }
+        try FileManager.default.removeItem(at: fileURL)
     }
 
     @objc func saveImage() {

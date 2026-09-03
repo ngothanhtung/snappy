@@ -111,7 +111,7 @@ final class AnnotationEditorController {
             height: (image.size.height * scale).rounded()
         )
 
-        let minimumToolbarWidth: CGFloat = 1090
+        let minimumToolbarWidth: CGFloat = 1206
         let contentWidth = max(displaySize.width, minimumToolbarWidth)
 
         let canvasView = AnnotationCanvasView(image: image, fileURL: fileURL)
@@ -264,6 +264,17 @@ final class AnnotationEditorController {
             x += 70
         }
 
+        // Copy the flattened image to the clipboard, then delete the
+        // backing file from disk (handled by the controller so it can
+        // close the editor window afterward).
+        let copyDeleteBtn = NSButton(title: "Copy & Delete", target: self,
+                                     action: #selector(copyAndDelete(_:)))
+        copyDeleteBtn.bezelStyle = .rounded
+        copyDeleteBtn.frame = CGRect(x: x, y: 12, width: 108, height: 28)
+        copyDeleteBtn.toolTip = "Copy image to clipboard, then delete the file from disk"
+        bar.addSubview(copyDeleteBtn)
+        x += 116
+
         // Upload to Google Drive (handled by the controller, not the canvas)
         let driveBtn = NSButton(title: "Drive", target: self, action: #selector(uploadToDrive(_:)))
         driveBtn.bezelStyle = .rounded
@@ -379,6 +390,24 @@ final class AnnotationEditorController {
                 NSApp.activate(ignoringOtherApps: true)
                 alert.runModal()
             }
+        }
+    }
+
+    @objc private func copyAndDelete(_ sender: NSButton) {
+        guard let canvas else { return }
+        do {
+            try canvas.copyAndDelete()
+            window?.close()
+            window = nil
+            self.canvas = nil
+            swatchButtons = []
+        } catch {
+            NSLog("Snappy: Copy & Delete failed to remove file: %@", String(describing: error))
+            let alert = NSAlert()
+            alert.messageText = "Copied to clipboard, but couldn't delete the file"
+            alert.informativeText = error.localizedDescription
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
         }
     }
 
