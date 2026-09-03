@@ -112,6 +112,27 @@ All NSLogs emitted by these components are prefixed `Snappy:` — filter process
 returned nil` is the smoking gun for the API obsolescence below; `ScreenCaptureKit
 cgImage WxH` / `cropped CGImage WxH` confirm the new pipeline ran).
 
+### Cloud upload (Google Drive / GitHub)
+
+The annotation editor's Copy/Save toolbar also offers "Upload to Drive" / "Upload
+to GitHub", handled in `AnnotationEditorController` via `GoogleDriveClient.shared`
+and `GitHubUploader.shared` (both singletons, both check `.isConfigured` before
+attempting an upload). Settings for both live in `SettingsView`, backed by
+`@AppStorage` for non-secret config (client ID, repo/branch/folder) and
+`KeychainStore` (a thin Keychain wrapper) for secrets (tokens, client secret).
+
+- `GoogleDriveClient` does OAuth2 with PKCE: `authorize()` opens the system
+  browser, spins up a local loopback listener (`RedirectCatcher`, built on
+  `NWConnection`, not `URLSession`) to catch the redirect, exchanges the code for
+  tokens, and refreshes silently via `validAccessToken()` before each upload.
+  Uploaded files are created inside a `snappy` folder in the user's Drive.
+- `GitHubUploader` is simpler: a user-supplied personal access token (PAT) is
+  used to commit the PNG straight to a configured repo/branch/folder via the
+  Contents API.
+
+Both are best-effort, opt-in features — they no-op instead of erroring if
+unconfigured, so this doesn't gate the core capture/annotate flow.
+
 ## Screen-capture APIs — DO NOT use the legacy ones
 
 `CGWindowListCreateImage` and `CGDisplayCreateImage(_:rect:)` are both
@@ -126,4 +147,3 @@ for the full pattern (bridges `SCShareableContent.excludingDesktopWindows` async
 plus `SCScreenshotManager` callback into a synchronous call via `Task.detached`,
 `withCheckedThrowingContinuation`, and `DispatchSemaphore` — safe because the
 completion fires on a background queue, never main).
-```
