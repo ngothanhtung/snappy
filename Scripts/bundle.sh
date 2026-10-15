@@ -67,6 +67,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <!-- Required by ScreenCaptureKit on macOS 14+ for region capture. -->
     <key>NSScreenCaptureUsageDescription</key>
     <string>Snappy captures a selected screen region for annotation, copying, and saving as PNG.</string>
+    <!-- macOS only reveals the Wi-Fi network name (Quick Panel) to apps with Location access. -->
+    <key>NSLocationUsageDescription</key>
+    <string>Snappy shows the name of your Wi-Fi network in the Quick Panel. Your location is never used or stored.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Snappy shows the name of your Wi-Fi network in the Quick Panel. Your location is never used or stored.</string>
 $ICON_PLIST
 </dict>
 </plist>

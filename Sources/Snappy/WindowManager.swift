@@ -20,6 +20,8 @@ enum WindowManager {
             RegionCaptureController.shared.start(destination: .annotate)
         case .cleanSystemJunk:
             JunkCleanerController.shared.show()
+        case .toggleQuickPanel:
+            QuickPanelController.shared.toggle()
         }
     }
 

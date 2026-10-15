@@ -159,3 +159,22 @@ off the main thread and re-runs `JunkSafety.canRemove` on every item right
 before removing it. Default is move-to-Trash (recoverable); categories are
 limited to caches/logs/temp/build products — never Documents, Preferences,
 Application Support or Containers. Add new categories in `JunkCategory` only.
+Selection is a tree (`SnappyCore/JunkTree.swift`, `JunkNode`): each scanned
+top-level folder is a node whose children are listed lazily as the user
+unfolds them (`JunkScanner.loadChildren`); checkboxes are tri-state and
+`removalTargets()` resolves ticks into the highest fully-ticked `.whole`
+nodes. `.contents` nodes (app cache folders, folders grouping old log/temp
+files) are never removed themselves — only what's inside them.
+
+## Quick Panel
+
+Menu → Maintenance → "Quick Panel" (`AppAction.toggleQuickPanel`, optional
+shortcut) opens a floating `NSPanel` (`QuickPanelController`/`QuickPanelView`)
+with disk, memory pressure, battery, CPU, network rates and external drives.
+`SystemMonitor` samples every 2 s only while the panel is open (stopped in
+`windowWillClose`). Math/wording is pure in `SnappyCore/SystemMetrics.swift`
+(tick deltas, 32-bit counter wrap, rate/battery formatting, disk levels).
+Actions: Free Up → junk cleaner; Optimize → heaviest apps with Quit plus
+`purge` via an admin prompt (`MemoryOptimizer`); Test Speed → Apple's
+`/usr/bin/networkQuality -c`; Eject for drives. The Wi-Fi name (SSID) needs
+Location access on macOS 14+ — `bundle.sh` adds `NSLocation*UsageDescription`.
