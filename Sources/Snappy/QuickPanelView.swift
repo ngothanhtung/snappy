@@ -2,38 +2,45 @@ import AppKit
 import SwiftUI
 import SnappyCore
 
-/// Floating "Quick Panel" with live disk, memory, battery, CPU, network and
-/// external-drive status. Sampling runs only while the panel is open.
+/// "Quick Panel" window with live disk, memory, battery, CPU, network and
+/// external-drive status. A standard macOS window (full title bar with the
+/// close/minimize buttons); sampling runs only while it is open.
 @MainActor
 final class QuickPanelController: NSObject, NSWindowDelegate {
     static let shared = QuickPanelController()
-    private var panel: NSPanel?
+    private var window: NSWindow?
     private let monitor = SystemMonitor()
 
     func show() {
-        if panel == nil {
-            let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
-                styleMask: [.titled, .closable, .utilityWindow],
+        if window == nil {
+            let host = NSHostingView(rootView: QuickPanelView(monitor: monitor))
+            let window = NSWindow(
+                contentRect: NSRect(origin: .zero, size: host.fittingSize),
+                styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered, defer: false
             )
-            panel.title = "Quick Panel"
-            panel.level = .floating
-            panel.hidesOnDeactivate = false
-            panel.isReleasedWhenClosed = false
-            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            panel.contentView = NSHostingView(rootView: QuickPanelView(monitor: monitor))
-            panel.delegate = self
-            panel.center()
-            self.panel = panel
+            window.title = "Quick Panel"
+            window.tabbingMode = .disallowed
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            window.delegate = self
+            // Reopen where the user last left it; center the first time.
+            if !window.setFrameUsingName("QuickPanel") { window.center() }
+            window.setFrameAutosaveName("QuickPanel")
+            self.window = window
         }
         monitor.start()
         NSApp.activate(ignoringOtherApps: true)
-        panel?.makeKeyAndOrderFront(nil)
+        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
+        window?.makeKeyAndOrderFront(nil)
     }
 
     func toggle() {
-        if panel?.isVisible == true { panel?.close() } else { show() }
+        if let window, window.isVisible, !window.isMiniaturized, window.isKeyWindow {
+            window.close()
+        } else {
+            show()
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -95,7 +102,7 @@ struct QuickPanelView: View {
                 Text("Pressure: \(percent(memory.pressure))")
                     .foregroundStyle(memory.pressure >= 0.8 ? .red
                                      : memory.pressure >= 0.6 ? .orange : .secondary)
-                Text("Used \(format(memory.used)) of \(format(memory.total))")
+                Text("Used \(format(memory.used, style: .memory)) of \(format(memory.total, style: .memory))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 UsageBar(fraction: memory.pressure,
@@ -264,8 +271,9 @@ struct QuickPanelView: View {
         }
     }
 
-    private func format(_ bytes: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    private func format(_ bytes: Int64,
+                        style: ByteCountFormatter.CountStyle = .file) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: style)
     }
 
     private func percent(_ fraction: Double) -> String {

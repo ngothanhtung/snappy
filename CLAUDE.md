@@ -169,7 +169,8 @@ files) are never removed themselves — only what's inside them.
 ## Quick Panel
 
 Menu → Maintenance → "Quick Panel" (`AppAction.toggleQuickPanel`, optional
-shortcut) opens a floating `NSPanel` (`QuickPanelController`/`QuickPanelView`)
+shortcut) opens a standard titled `NSWindow` (`QuickPanelController`/`QuickPanelView`;
+position autosaved as "QuickPanel")
 with disk, memory pressure, battery, CPU, network rates and external drives.
 `SystemMonitor` samples every 2 s only while the panel is open (stopped in
 `windowWillClose`). Math/wording is pure in `SnappyCore/SystemMetrics.swift`
