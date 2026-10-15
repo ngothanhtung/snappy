@@ -180,3 +180,22 @@ Actions: Free Up → junk cleaner; Optimize → heaviest apps with Quit plus
 `purge` via an admin prompt (`MemoryOptimizer`); Test Speed → Apple's
 `/usr/bin/networkQuality -c`; Eject for drives. The Wi-Fi name (SSID) needs
 Location access on macOS 14+ — `bundle.sh` adds `NSLocation*UsageDescription`.
+
+## App Uninstaller
+
+Menu → Maintenance → "Uninstall Apps…" (`AppAction.uninstallApps`) opens
+`AppUninstallerView` (`AppUninstallerController`/`AppUninstallerModel`). Apps
+come from /Applications and ~/Applications; Apple (`com.apple.*`) apps and
+Snappy itself are refused (`AppLeftoverRules.refusal`). Which ~/Library items
+belong to an app is decided in `SnappyCore/AppLeftovers.swift` and is unit
+tested: exact bundle ID, the app's own embedded helpers/extensions, and the app
+name (also nested as "Vendor/Name", e.g. `Google/Chrome`) are ticked; mere
+bundle-ID prefixes and third-party embedded components (updaters, Sparkle) start
+unticked; team-prefixed vendor data is hidden when another installed app has the
+same signing team; another installed app's data (`com.foo.app.beta`) is never
+claimed.
+Results reuse the `JunkNode` tree and `JunkNodeRow` views (shared via
+`JunkTreeModel` in `JunkTreeViews.swift`). `AppUninstaller.remove` moves items
+to the Trash after `AppLeftoverRules.isRemovable`; a non-writable app bundle
+falls back to Finder (Apple Events, `NSAppleEventsUsageDescription`) so macOS
+can prompt for an admin password. Removal is blocked while the app runs.

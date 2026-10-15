@@ -23,6 +23,7 @@ extension KeyboardShortcuts.Name {
     static let cleanSystemJunk = Self("cleanSystemJunk")
     // Raw name predates the "Mac Health" rename; kept so saved shortcuts survive.
     static let macHealth = Self("quickPanel")
+    static let uninstallApps = Self("uninstallApps")
 }
 
 /// An action a shortcut (or menu item) can trigger.
@@ -33,6 +34,7 @@ enum AppAction {
     case captureRegionAndEdit
     case cleanSystemJunk
     case toggleMacHealth
+    case uninstallApps
 }
 
 /// Pairs each action with its shortcut name and a human-readable title.
@@ -76,6 +78,8 @@ enum Bindings {
               action: .toggleMacHealth, symbol: "heart.text.square"),
         .init(name: .cleanSystemJunk, title: "Clean System Junk\u{2026}",
               action: .cleanSystemJunk, symbol: "sparkles"),
+        .init(name: .uninstallApps, title: "Uninstall Apps\u{2026}",
+              action: .uninstallApps, symbol: "trash.square"),
     ]
 
     static var all: [ActionBinding] { layouts + displays + capture + maintenance }

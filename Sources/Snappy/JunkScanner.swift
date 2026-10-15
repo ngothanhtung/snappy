@@ -181,7 +181,7 @@ enum JunkScanner {
         Int64(values?.totalFileAllocatedSize ?? values?.fileAllocatedSize ?? 0)
     }
 
-    private static func allocatedSize(of url: URL) -> Int64 {
+    static func allocatedSize(of url: URL) -> Int64 {
         let values = try? url.resourceValues(forKeys: sizeKeys)
         guard values?.isDirectory == true, values?.isSymbolicLink != true else {
             return fileSize(values)

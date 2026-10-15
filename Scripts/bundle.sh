@@ -72,6 +72,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Snappy shows the name of your Wi-Fi network in Mac Health. Your location is never used or stored.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Snappy shows the name of your Wi-Fi network in Mac Health. Your location is never used or stored.</string>
+    <!-- Uninstaller: asks Finder to trash apps that need an admin password. -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Snappy asks Finder to move apps you uninstall to the Trash, so macOS can request your administrator password when an app needs it.</string>
 $ICON_PLIST
 </dict>
 </plist>

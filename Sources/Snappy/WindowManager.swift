@@ -22,6 +22,8 @@ enum WindowManager {
             JunkCleanerController.shared.show()
         case .toggleMacHealth:
             MacHealthController.shared.toggle()
+        case .uninstallApps:
+            AppUninstallerController.shared.show()
         }
     }
 
