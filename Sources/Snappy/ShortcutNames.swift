@@ -20,6 +20,9 @@ extension KeyboardShortcuts.Name {
     static let previousDisplay = Self("previousDisplay", default: .init(.leftArrow,  modifiers: [.control, .option, .command]))
     static let captureRegion   = Self("captureRegion")
     static let captureRegionAndEdit = Self("captureRegionAndEdit")
+    static let cleanSystemJunk = Self("cleanSystemJunk")
+    // Raw name predates the "Mac Health" rename; kept so saved shortcuts survive.
+    static let macHealth = Self("quickPanel")
 }
 
 /// An action a shortcut (or menu item) can trigger.
@@ -28,6 +31,8 @@ enum AppAction {
     case moveToDisplay(DisplayOrdering.Direction)
     case captureRegion
     case captureRegionAndEdit
+    case cleanSystemJunk
+    case toggleMacHealth
 }
 
 /// Pairs each action with its shortcut name and a human-readable title.
@@ -66,5 +71,12 @@ enum Bindings {
               action: .captureRegionAndEdit, symbol: "pencil.and.outline"),
     ]
 
-    static var all: [ActionBinding] { layouts + displays + capture }
+    static let maintenance: [ActionBinding] = [
+        .init(name: .macHealth, title: "Mac Health",
+              action: .toggleMacHealth, symbol: "heart.text.square"),
+        .init(name: .cleanSystemJunk, title: "Clean System Junk\u{2026}",
+              action: .cleanSystemJunk, symbol: "sparkles"),
+    ]
+
+    static var all: [ActionBinding] { layouts + displays + capture + maintenance }
 }

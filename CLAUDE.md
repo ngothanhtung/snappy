@@ -147,3 +147,36 @@ for the full pattern (bridges `SCShareableContent.excludingDesktopWindows` async
 plus `SCScreenshotManager` callback into a synchronous call via `Task.detached`,
 `withCheckedThrowingContinuation`, and `DispatchSemaphore` — safe because the
 completion fires on a background queue, never main).
+
+## System Junk Cleaner
+
+Menu → Maintenance → "Clean System Junk…" (`AppAction.cleanSystemJunk`) opens
+`JunkCleanerView` (SwiftUI, hosted by `JunkCleanerController`). What counts as
+junk and what is never touched lives in `SnappyCore/JunkCleaning.swift`
+(`JunkCategory` roots/strategy/age limits, `JunkSafety` containment, protected
+names, running-app checks) and is unit tested. `JunkScanner` does the file I/O
+off the main thread and re-runs `JunkSafety.canRemove` on every item right
+before removing it. Default is move-to-Trash (recoverable); categories are
+limited to caches/logs/temp/build products — never Documents, Preferences,
+Application Support or Containers. Add new categories in `JunkCategory` only.
+Selection is a tree (`SnappyCore/JunkTree.swift`, `JunkNode`): each scanned
+top-level folder is a node whose children are listed lazily as the user
+unfolds them (`JunkScanner.loadChildren`); checkboxes are tri-state and
+`removalTargets()` resolves ticks into the highest fully-ticked `.whole`
+nodes. `.contents` nodes (app cache folders, folders grouping old log/temp
+files) are never removed themselves — only what's inside them.
+
+## Mac Health
+
+Menu → Maintenance → "Mac Health" (`AppAction.toggleMacHealth`, optional
+shortcut) opens a standard titled `NSWindow` (`MacHealthController`/`MacHealthView`;
+position autosaved as "QuickPanel" and shortcut raw name "quickPanel", both kept
+from before the rename)
+with disk, memory pressure, battery, CPU, network rates and external drives.
+`SystemMonitor` samples every 2 s only while the panel is open (stopped in
+`windowWillClose`). Math/wording is pure in `SnappyCore/SystemMetrics.swift`
+(tick deltas, 32-bit counter wrap, rate/battery formatting, disk levels).
+Actions: Free Up → junk cleaner; Optimize → heaviest apps with Quit plus
+`purge` via an admin prompt (`MemoryOptimizer`); Test Speed → Apple's
+`/usr/bin/networkQuality -c`; Eject for drives. The Wi-Fi name (SSID) needs
+Location access on macOS 14+ — `bundle.sh` adds `NSLocation*UsageDescription`.

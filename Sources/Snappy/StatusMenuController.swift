@@ -40,6 +40,10 @@ final class StatusMenuController: NSObject {
         menu.addItem(openForEditing)
 
         menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Maintenance"))
+        addActionItems(Bindings.maintenance, to: menu)
+
+        menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings\u{2026}", action: #selector(openSettings),
                                   keyEquivalent: ",")
         settings.target = self
