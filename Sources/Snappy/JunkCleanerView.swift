@@ -134,9 +134,8 @@ final class JunkCleanerModel: ObservableObject {
             let found = JunkScanner.scan(categories, runningBundleIDs: running)
             await MainActor.run {
                 self.groups = found
-                // Unfold every category that found something so its folders
-                // are reviewed before cleaning.
-                self.expandedCategories = Set(found.map(\.category))
+                // Start collapsed; the user unfolds what they want to review.
+                self.expandedCategories = []
                 self.phase = .scanned
             }
         }
