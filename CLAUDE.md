@@ -147,3 +147,15 @@ for the full pattern (bridges `SCShareableContent.excludingDesktopWindows` async
 plus `SCScreenshotManager` callback into a synchronous call via `Task.detached`,
 `withCheckedThrowingContinuation`, and `DispatchSemaphore` — safe because the
 completion fires on a background queue, never main).
+
+## System Junk Cleaner
+
+Menu → Maintenance → "Clean System Junk…" (`AppAction.cleanSystemJunk`) opens
+`JunkCleanerView` (SwiftUI, hosted by `JunkCleanerController`). What counts as
+junk and what is never touched lives in `SnappyCore/JunkCleaning.swift`
+(`JunkCategory` roots/strategy/age limits, `JunkSafety` containment, protected
+names, running-app checks) and is unit tested. `JunkScanner` does the file I/O
+off the main thread and re-runs `JunkSafety.canRemove` on every item right
+before removing it. Default is move-to-Trash (recoverable); categories are
+limited to caches/logs/temp/build products — never Documents, Preferences,
+Application Support or Containers. Add new categories in `JunkCategory` only.

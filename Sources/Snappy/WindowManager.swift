@@ -18,6 +18,8 @@ enum WindowManager {
             RegionCaptureController.shared.start(destination: .preview)
         case .captureRegionAndEdit:
             RegionCaptureController.shared.start(destination: .annotate)
+        case .cleanSystemJunk:
+            JunkCleanerController.shared.show()
         }
     }
 

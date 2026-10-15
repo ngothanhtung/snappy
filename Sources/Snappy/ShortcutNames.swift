@@ -20,6 +20,7 @@ extension KeyboardShortcuts.Name {
     static let previousDisplay = Self("previousDisplay", default: .init(.leftArrow,  modifiers: [.control, .option, .command]))
     static let captureRegion   = Self("captureRegion")
     static let captureRegionAndEdit = Self("captureRegionAndEdit")
+    static let cleanSystemJunk = Self("cleanSystemJunk")
 }
 
 /// An action a shortcut (or menu item) can trigger.
@@ -28,6 +29,7 @@ enum AppAction {
     case moveToDisplay(DisplayOrdering.Direction)
     case captureRegion
     case captureRegionAndEdit
+    case cleanSystemJunk
 }
 
 /// Pairs each action with its shortcut name and a human-readable title.
@@ -66,5 +68,10 @@ enum Bindings {
               action: .captureRegionAndEdit, symbol: "pencil.and.outline"),
     ]
 
-    static var all: [ActionBinding] { layouts + displays + capture }
+    static let maintenance: [ActionBinding] = [
+        .init(name: .cleanSystemJunk, title: "Clean System Junk\u{2026}",
+              action: .cleanSystemJunk, symbol: "sparkles"),
+    ]
+
+    static var all: [ActionBinding] { layouts + displays + capture + maintenance }
 }

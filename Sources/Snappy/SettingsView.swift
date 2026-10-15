@@ -31,6 +31,11 @@ struct SettingsView: View {
                     recorderRow(for: binding)
                 }
             }
+            Section("Maintenance") {
+                ForEach(Bindings.maintenance, id: \.name) { binding in
+                    recorderRow(for: binding)
+                }
+            }
             Section {
                 if !GoogleDriveClient.hasBundledCredentials {
                     TextField("Client ID", text: $driveClientID)
