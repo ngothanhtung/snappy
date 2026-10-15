@@ -26,7 +26,7 @@ public enum DiskLevel: Equatable, Sendable {
     case ok, low, critical
 }
 
-/// Pure math and wording for the quick panel's live system readings.
+/// Pure math and wording for Mac Health's live system readings.
 public enum SystemMetrics {
 
     /// Load between two tick samples; nil if no time passed or counters reset.

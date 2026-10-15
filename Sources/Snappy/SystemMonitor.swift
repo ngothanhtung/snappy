@@ -6,7 +6,7 @@ import IOKit.ps
 import Network
 import SnappyCore
 
-/// Live system readings for the quick panel. Samples every 2 s while
+/// Live system readings for Mac Health. Samples every 2 s while
 /// started; call `stop()` when the panel closes so nothing polls in the
 /// background.
 @MainActor

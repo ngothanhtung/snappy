@@ -21,7 +21,8 @@ extension KeyboardShortcuts.Name {
     static let captureRegion   = Self("captureRegion")
     static let captureRegionAndEdit = Self("captureRegionAndEdit")
     static let cleanSystemJunk = Self("cleanSystemJunk")
-    static let quickPanel = Self("quickPanel")
+    // Raw name predates the "Mac Health" rename; kept so saved shortcuts survive.
+    static let macHealth = Self("quickPanel")
 }
 
 /// An action a shortcut (or menu item) can trigger.
@@ -31,7 +32,7 @@ enum AppAction {
     case captureRegion
     case captureRegionAndEdit
     case cleanSystemJunk
-    case toggleQuickPanel
+    case toggleMacHealth
 }
 
 /// Pairs each action with its shortcut name and a human-readable title.
@@ -71,8 +72,8 @@ enum Bindings {
     ]
 
     static let maintenance: [ActionBinding] = [
-        .init(name: .quickPanel, title: "Quick Panel",
-              action: .toggleQuickPanel, symbol: "gauge.with.dots.needle.33percent"),
+        .init(name: .macHealth, title: "Mac Health",
+              action: .toggleMacHealth, symbol: "heart.text.square"),
         .init(name: .cleanSystemJunk, title: "Clean System Junk\u{2026}",
               action: .cleanSystemJunk, symbol: "sparkles"),
     ]

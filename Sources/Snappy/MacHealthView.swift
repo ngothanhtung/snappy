@@ -2,29 +2,30 @@ import AppKit
 import SwiftUI
 import SnappyCore
 
-/// "Quick Panel" window with live disk, memory, battery, CPU, network and
+/// "Mac Health" window with live disk, memory, battery, CPU, network and
 /// external-drive status. A standard macOS window (full title bar with the
 /// close/minimize buttons); sampling runs only while it is open.
 @MainActor
-final class QuickPanelController: NSObject, NSWindowDelegate {
-    static let shared = QuickPanelController()
+final class MacHealthController: NSObject, NSWindowDelegate {
+    static let shared = MacHealthController()
     private var window: NSWindow?
     private let monitor = SystemMonitor()
 
     func show() {
         if window == nil {
-            let host = NSHostingView(rootView: QuickPanelView(monitor: monitor))
+            let host = NSHostingView(rootView: MacHealthView(monitor: monitor))
             let window = NSWindow(
                 contentRect: NSRect(origin: .zero, size: host.fittingSize),
                 styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered, defer: false
             )
-            window.title = "Quick Panel"
+            window.title = "Mac Health"
             window.tabbingMode = .disallowed
             window.isReleasedWhenClosed = false
             window.contentView = host
             window.delegate = self
             // Reopen where the user last left it; center the first time.
+            // Autosave name predates the rename; kept so the saved position survives.
             if !window.setFrameUsingName("QuickPanel") { window.center() }
             window.setFrameAutosaveName("QuickPanel")
             self.window = window
@@ -48,7 +49,7 @@ final class QuickPanelController: NSObject, NSWindowDelegate {
     }
 }
 
-struct QuickPanelView: View {
+struct MacHealthView: View {
     @ObservedObject var monitor: SystemMonitor
     @StateObject private var speedTest = SpeedTest()
     @State private var showingMemory = false
@@ -281,7 +282,7 @@ struct QuickPanelView: View {
     }
 }
 
-/// One tile of the quick panel: icon + title, body lines, optional action.
+/// One tile of Mac Health: icon + title, body lines, optional action.
 private struct StatCard<Content: View, Action: View>: View {
     let symbol: String
     let title: String

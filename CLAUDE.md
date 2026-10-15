@@ -166,11 +166,12 @@ unfolds them (`JunkScanner.loadChildren`); checkboxes are tri-state and
 nodes. `.contents` nodes (app cache folders, folders grouping old log/temp
 files) are never removed themselves — only what's inside them.
 
-## Quick Panel
+## Mac Health
 
-Menu → Maintenance → "Quick Panel" (`AppAction.toggleQuickPanel`, optional
-shortcut) opens a standard titled `NSWindow` (`QuickPanelController`/`QuickPanelView`;
-position autosaved as "QuickPanel")
+Menu → Maintenance → "Mac Health" (`AppAction.toggleMacHealth`, optional
+shortcut) opens a standard titled `NSWindow` (`MacHealthController`/`MacHealthView`;
+position autosaved as "QuickPanel" and shortcut raw name "quickPanel", both kept
+from before the rename)
 with disk, memory pressure, battery, CPU, network rates and external drives.
 `SystemMonitor` samples every 2 s only while the panel is open (stopped in
 `windowWillClose`). Math/wording is pure in `SnappyCore/SystemMetrics.swift`
