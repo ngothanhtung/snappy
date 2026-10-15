@@ -200,44 +200,83 @@ private struct TriStateCheckbox: View {
     }
 }
 
+/// A chevron that unfolds/folds a row. Hand-rolled (instead of
+/// `DisclosureGroup`) because nested disclosure groups inside a macOS `List`
+/// row never grow the row, so their children stay invisible.
+private struct DisclosureChevron: View {
+    let isExpanded: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .frame(width: 14, height: 14)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isExpanded ? "Collapse" : "Expand")
+    }
+}
+
 /// One file/folder in the review tree; unfolds into its children, which are
 /// listed on demand, so any level can be ticked or unticked.
 private struct JunkNodeRow: View {
     let node: JunkNode
     @ObservedObject var model: JunkCleanerModel
+    /// Nesting level below the category, used for indentation.
+    var depth = 0
     /// Show the full path under the name (top-level folders only).
     var showsPath = false
 
     /// Children listed per folder; the rest follow the folder's checkbox.
     private let childLimit = 300
+    private let indent: CGFloat = 18
 
     var body: some View {
-        if node.isExpandable {
-            DisclosureGroup(isExpanded: Binding(get: { node.isExpanded },
-                                                set: { model.setExpanded(node, $0) })) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                if node.isExpandable {
+                    DisclosureChevron(isExpanded: node.isExpanded) {
+                        model.setExpanded(node, !node.isExpanded)
+                    }
+                } else {
+                    Color.clear.frame(width: 14, height: 14)
+                }
+                label
+            }
+            .padding(.leading, CGFloat(depth) * indent)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                if node.isExpandable { model.setExpanded(node, !node.isExpanded) }
+            }
+
+            if node.isExpanded {
                 if model.loading.contains(node.id) {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini)
                         Text("Loading\u{2026}").font(.caption).foregroundStyle(.secondary)
                     }
+                    .padding(.leading, CGFloat(depth + 1) * indent + 20)
+                    .padding(.vertical, 3)
                 }
                 if let children = node.children {
                     ForEach(children.prefix(childLimit)) { child in
-                        JunkNodeRow(node: child, model: model)
+                        JunkNodeRow(node: child, model: model, depth: depth + 1)
                     }
                     if children.count > childLimit {
                         Text("\u{2026} and \(children.count - childLimit) smaller items, "
                              + "ticked or unticked together with this folder")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .padding(.leading, CGFloat(depth + 1) * indent + 20)
+                            .padding(.vertical, 3)
                     }
                 }
-            } label: {
-                label
             }
-        } else {
-            // Line up with rows that have a disclosure chevron.
-            label.padding(.leading, 18)
         }
     }
 
@@ -286,19 +325,27 @@ private struct JunkNodeRow: View {
 }
 
 struct JunkCleanerView: View {
-    @StateObject private var model = JunkCleanerModel()
+    @StateObject private var model: JunkCleanerModel
     @State private var confirming = false
+
+    @MainActor
+    init(model: JunkCleanerModel? = nil) {
+        _model = StateObject(wrappedValue: model ?? JunkCleanerModel())
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            List {
-                ForEach(JunkCategory.allCases, id: \.self) { category in
-                    categorySection(category)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(JunkCategory.allCases, id: \.self) { category in
+                        categorySection(category)
+                        Divider()
+                    }
                 }
+                .padding(.horizontal, 16)
             }
-            .listStyle(.inset)
             .disabled(model.isBusy)
             Divider()
             footer
@@ -378,7 +425,7 @@ struct JunkCleanerView: View {
                 if model.phase == .scanned {
                     Text(groups.isEmpty
                          ? "Nothing found"
-                         : "\(groups.count) folders · "
+                         : "\(folderCount(groups.count)) · "
                            + JunkCleanerModel.format(model.bytes(in: category)))
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -389,29 +436,41 @@ struct JunkCleanerView: View {
                 .foregroundStyle(.secondary)
                 .padding(.leading, 22)
             if model.phase == .scanned, !groups.isEmpty {
-                DisclosureGroup(isExpanded: expandedBinding(category)) {
-                    ForEach(groups) { group in
-                        JunkNodeRow(node: group.node, model: model, showsPath: true)
+                let open = model.expandedCategories.contains(category)
+                HStack(spacing: 6) {
+                    DisclosureChevron(isExpanded: open) { toggleCategoryFolders(category) }
+                    Button(open ? "Hide folders" : "Show \(folderCount(groups.count))") {
+                        toggleCategoryFolders(category)
                     }
-                } label: {
-                    Text(model.expandedCategories.contains(category)
-                         ? "Hide folders" : "Show folders")
-                        .font(.caption)
+                    .buttonStyle(.link)
+                    .font(.caption)
                 }
                 .padding(.leading, 22)
+                .padding(.top, 2)
+                if open {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(groups) { group in
+                            JunkNodeRow(node: group.node, model: model, showsPath: true)
+                        }
+                    }
+                    .padding(.leading, 22)
+                    .padding(.top, 4)
+                }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 10)
     }
 
-    private func expandedBinding(_ category: JunkCategory) -> Binding<Bool> {
-        Binding(
-            get: { model.expandedCategories.contains(category) },
-            set: { open in
-                if open { model.expandedCategories.insert(category) }
-                else { model.expandedCategories.remove(category) }
-            }
-        )
+    private func folderCount(_ count: Int) -> String {
+        count == 1 ? "1 folder" : "\(count) folders"
+    }
+
+    private func toggleCategoryFolders(_ category: JunkCategory) {
+        if model.expandedCategories.contains(category) {
+            model.expandedCategories.remove(category)
+        } else {
+            model.expandedCategories.insert(category)
+        }
     }
 
     // MARK: - Footer
