@@ -199,3 +199,34 @@ Results reuse the `JunkNode` tree and `JunkNodeRow` views (shared via
 to the Trash after `AppLeftoverRules.isRemovable`; a non-writable app bundle
 falls back to Finder (Apple Events, `NSAppleEventsUsageDescription`) so macOS
 can prompt for an admin password. Removal is blocked while the app runs.
+
+## Mini Display (Jungle Leopard USB screen)
+
+Streams a system dashboard (CPU per-core load + temp, GPU load + temp, RAM,
+storage free + read/write, network, clock) to a Jungle Leopard USB mini display
+(tested: 9.16" 1920x462, model `AW_F101-NOR-FL7707N-9.16inch-hor`, fw 5.3).
+Status-menu section "Mini Display" (status line, brightness slider, "Show
+Dashboard" toggle) and a Settings section, both driven by
+`MiniDisplayController` (`@AppStorage`-style keys `miniDisplayEnabled`,
+`miniDisplayBrightness`). Started from `AppDelegate`, closed on terminate.
+
+- Protocol is pure and unit tested in `SnappyCore/MiniDisplayProtocol.swift`:
+  USB CDC-ACM serial (VID 0x33C3, shows up as `/dev/cu.usbmodem*`), command
+  frames `55 AA | len u16 | cmd | payload | sum16`, image frames
+  `len u32 | JPEG | sum16`. JPEGs must be **baseline 4:2:0** and under
+  `MiniDisplayInfo.maxJpegBytes`; ImageIO's default JPEG output qualifies.
+- `MiniDisplayEngine` runs on its own thread: open port → `getInfo` (JSON) →
+  `live` → render with `MiniDisplayRenderer` → send ~4 fps (a still must be
+  re-sent continuously or it shows half-drawn) with `live` keep-alive every 1.5 s.
+- Rotation: the firmware rotates every frame by the reported `angle`;
+  pre-rotating by the same angle comes out upright (verified for angle 270).
+- Brightness: `setLight` (0x03) is acknowledged but does not change the
+  backlight on fw 5.3 (tested: in live, after close, after flush, after
+  restart), so the renderer dims with a black overlay as well.
+- Temperatures use private `IOHIDEventSystemClient` via `dlsym`
+  (`MiniDisplayThermal`); M1-family only exposes PMU sensors (`tdie*` → CPU,
+  `TPxg` → GPU, `NAND` → SSD).
+- Only one process can own the serial port — quit any other panel app first.
+- Dev: set `SNAPPY_MINIDISPLAY_DEBUG_DIR=/some/dir` to get `minidisplay.log`
+  and a `preview.jpg` of the frame being sent; otherwise logs go to NSLog
+  (`Snappy: MiniDisplay:`).

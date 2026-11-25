@@ -13,6 +13,7 @@ keyboard shortcuts.
 - Customizable global shortcuts in the Settings window
 - Multi-display support; snapping is calculated within the display that contains the window
 - Custom template menu bar icon that adapts to light and dark menu bars
+- **Mini Display:** streams a live system dashboard (CPU, GPU, RAM, storage, network, clock) to a Jungle Leopard USB mini screen such as the 9.16" 1920x462 panel, with a brightness slider in the menu
 - Launch at login
 
 ## Default Shortcuts

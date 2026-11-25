@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage(GitHubUploader.folderDefaultsKey) private var githubFolder = "snappy"
     @State private var githubTokenInput = ""
     @State private var githubHasToken = GitHubUploader.shared.hasToken
+    @ObservedObject private var miniDisplay = MiniDisplayController.shared
 
     var body: some View {
         Form {
@@ -35,6 +36,28 @@ struct SettingsView: View {
                 ForEach(Bindings.maintenance, id: \.name) { binding in
                     recorderRow(for: binding)
                 }
+            }
+            Section {
+                Toggle("Show dashboard on mini display", isOn: Binding(
+                    get: { miniDisplay.isEnabled },
+                    set: { miniDisplay.setEnabled($0) }
+                ))
+                LabeledContent("Brightness") {
+                    Slider(value: Binding(
+                        get: { Double(miniDisplay.brightness) },
+                        set: { miniDisplay.setBrightness(Int($0.rounded())) }
+                    ), in: 0...100)
+                    .disabled(!miniDisplay.isEnabled)
+                }
+                LabeledContent("Status", value: miniDisplay.statusText)
+            } header: {
+                Text("Mini Display")
+            } footer: {
+                Text("Streams CPU, GPU, RAM, storage, network and a clock to a Jungle Leopard "
+                     + "USB screen (e.g. 9.16\"). Brightness is applied in software because the "
+                     + "panel's firmware ignores backlight commands.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section {
                 if !GoogleDriveClient.hasBundledCredentials {
