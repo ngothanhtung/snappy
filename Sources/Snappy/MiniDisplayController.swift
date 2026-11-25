@@ -17,7 +17,7 @@ final class MiniDisplayController: ObservableObject {
 
     private let engine: MiniDisplayEngine
     private let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let enabledItem = NSMenuItem(title: "Show Dashboard", action: nil, keyEquivalent: "")
+    private let enabledItem = NSMenuItem(title: "Sync", action: nil, keyEquivalent: "")
     private let brightnessLabel = NSTextField(labelWithString: "")
     private let brightnessSlider = NSSlider(value: 80, minValue: 0, maxValue: 100, target: nil, action: nil)
 
@@ -99,7 +99,7 @@ final class MiniDisplayController: ObservableObject {
         enabledItem.target = self
         enabledItem.action = #selector(toggleEnabled)
         enabledItem.image = NSImage(systemSymbolName: "gauge.with.dots.needle.67percent",
-                                    accessibilityDescription: "Show Dashboard")
+                                    accessibilityDescription: "Sync")
 
         refreshMenuItems()
         return [statusLine, sliderItem, enabledItem]

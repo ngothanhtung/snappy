@@ -205,8 +205,8 @@ can prompt for an admin password. Removal is blocked while the app runs.
 Streams a system dashboard (CPU per-core load + temp, GPU load + temp, RAM,
 storage free + read/write, network, clock) to a Jungle Leopard USB mini display
 (tested: 9.16" 1920x462, model `AW_F101-NOR-FL7707N-9.16inch-hor`, fw 5.3).
-Status-menu section "Mini Display" (status line, brightness slider, "Show
-Dashboard" toggle) and a Settings section, both driven by
+Status-menu section "Mini Display" (status line, brightness slider, "Sync"
+toggle that starts/stops streaming and frees the serial port) and a Settings section, both driven by
 `MiniDisplayController` (`@AppStorage`-style keys `miniDisplayEnabled`,
 `miniDisplayBrightness`). Started from `AppDelegate`, closed on terminate.
 

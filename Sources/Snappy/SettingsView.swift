@@ -38,7 +38,7 @@ struct SettingsView: View {
                 }
             }
             Section {
-                Toggle("Show dashboard on mini display", isOn: Binding(
+                Toggle("Sync", isOn: Binding(
                     get: { miniDisplay.isEnabled },
                     set: { miniDisplay.setEnabled($0) }
                 ))
