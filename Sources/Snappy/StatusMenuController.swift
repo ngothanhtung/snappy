@@ -40,6 +40,10 @@ final class StatusMenuController: NSObject {
         menu.addItem(openForEditing)
 
         menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Mini Display"))
+        MiniDisplayController.shared.makeMenuItems().forEach(menu.addItem)
+
+        menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: "Maintenance"))
         addActionItems(Bindings.maintenance, to: menu)
 

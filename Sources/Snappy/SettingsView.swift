@@ -13,6 +13,8 @@ struct SettingsView: View {
     @AppStorage(GitHubUploader.folderDefaultsKey) private var githubFolder = "snappy"
     @State private var githubTokenInput = ""
     @State private var githubHasToken = GitHubUploader.shared.hasToken
+    @ObservedObject private var miniDisplay = MiniDisplayController.shared
+    @State private var photoAlbums: [MiniDisplayPhotoAlbum] = []
 
     var body: some View {
         Form {
@@ -35,6 +37,66 @@ struct SettingsView: View {
                 ForEach(Bindings.maintenance, id: \.name) { binding in
                     recorderRow(for: binding)
                 }
+            }
+            Section {
+                Toggle("Sync", isOn: Binding(
+                    get: { miniDisplay.isEnabled },
+                    set: { miniDisplay.setEnabled($0) }
+                ))
+                .toggleStyle(.switch)
+                LabeledContent("Brightness") {
+                    Slider(value: Binding(
+                        get: { Double(miniDisplay.brightness) },
+                        set: { miniDisplay.setBrightness(Int($0.rounded())) }
+                    ), in: 0...100)
+                    .disabled(!miniDisplay.isEnabled)
+                }
+                Toggle("Photos panel", isOn: Binding(
+                    get: { miniDisplay.showsPhotos },
+                    set: { miniDisplay.setShowsPhotos($0) }
+                ))
+                .toggleStyle(.switch)
+                .disabled(!miniDisplay.isEnabled)
+                if miniDisplay.showsPhotos {
+                    Picker("Album", selection: Binding(
+                        get: { miniDisplay.photoAlbumID },
+                        set: { miniDisplay.setPhotoAlbum($0) }
+                    )) {
+                        if photoAlbums.isEmpty {
+                            Text("All Photos").tag(MiniDisplayPhotoAlbum.allPhotosID)
+                        }
+                        ForEach(photoAlbums) { album in
+                            Text("\(album.title) (\(album.count))").tag(album.id)
+                        }
+                    }
+                    .onAppear { photoAlbums = miniDisplay.photoAlbums() }
+                    Picker("Frame", selection: Binding(
+                        get: { miniDisplay.photoAspect },
+                        set: { miniDisplay.setPhotoAspect($0) }
+                    )) {
+                        ForEach(MiniDisplayPhotoAspect.all) { a in Text(a.id).tag(a) }
+                    }
+                    Picker("Change every", selection: Binding(
+                        get: { miniDisplay.photoInterval },
+                        set: { miniDisplay.setPhotoInterval($0) }
+                    )) {
+                        ForEach(MiniDisplayController.photoIntervals, id: \.self) { sec in
+                            Text(MiniDisplayController.intervalLabel(sec)).tag(sec)
+                        }
+                    }
+                }
+                LabeledContent("Status", value: miniDisplay.photosProblem.map {
+                    "\(miniDisplay.statusText) \u{00B7} \($0)"
+                } ?? miniDisplay.statusText)
+            } header: {
+                Text("Mini Display")
+            } footer: {
+                Text("Streams CPU, GPU, RAM, storage, network and a clock to a Jungle Leopard "
+                     + "USB screen (e.g. 9.16\"). The photos panel shows a random photo from your "
+                     + "Photos library from the chosen album in a panel on the right (frame shape selectable), crossfading between them. Brightness is applied in software because the "
+                     + "panel's firmware ignores backlight commands.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section {
                 if !GoogleDriveClient.hasBundledCredentials {
