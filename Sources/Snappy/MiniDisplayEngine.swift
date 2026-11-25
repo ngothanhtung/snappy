@@ -38,6 +38,15 @@ final class MiniDisplayEngine: @unchecked Sendable {
 
     private var currentPhotoSource: (() -> MiniDisplayPhotoFrame)? { locked { photoSource } }
 
+    private var agendaSource: (() -> MiniDisplayAgenda?)?
+
+    /// Supplies the agenda card (calendar events / reminders), or nil to hide it.
+    func setAgendaSource(_ source: (() -> MiniDisplayAgenda?)?) {
+        locked { agendaSource = source }
+    }
+
+    private var currentAgendaSource: (() -> MiniDisplayAgenda?)? { locked { agendaSource } }
+
     private func locked<T>(_ f: () -> T) -> T {
         lock.lock()
         defer { lock.unlock() }
@@ -154,7 +163,8 @@ final class MiniDisplayEngine: @unchecked Sendable {
                         snap = sensors.sample()
                         lastSample = t0
                     }
-                    guard let img = renderer.render(snap, now: t0, photoPanel: photo != nil, photo: photo),
+                    guard let img = renderer.render(snap, now: t0, photoPanel: photo != nil, photo: photo,
+                                                    agenda: currentAgendaSource?() ?? nil),
                           let jpeg = MiniDisplayJPEG.encode(img, maxBytes: info.maxJpegBytes, quality: &jpegQuality) else {
                         MiniDisplayLog.log("render/encode failed")
                         nap(1)

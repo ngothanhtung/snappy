@@ -85,6 +85,18 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Toggle("Calendar events", isOn: Binding(
+                    get: { miniDisplay.showsCalendar },
+                    set: { miniDisplay.setShowsCalendar($0) }
+                ))
+                .toggleStyle(.switch)
+                .disabled(!miniDisplay.isEnabled)
+                Toggle("Reminders", isOn: Binding(
+                    get: { miniDisplay.showsReminders },
+                    set: { miniDisplay.setShowsReminders($0) }
+                ))
+                .toggleStyle(.switch)
+                .disabled(!miniDisplay.isEnabled)
                 LabeledContent("Status", value: miniDisplay.photosProblem.map {
                     "\(miniDisplay.statusText) \u{00B7} \($0)"
                 } ?? miniDisplay.statusText)
@@ -93,7 +105,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Streams CPU, GPU, RAM, storage, network and a clock to a Jungle Leopard "
                      + "USB screen (e.g. 9.16\"). The photos panel shows a random photo from your "
-                     + "Photos library from the chosen album in a panel on the right (frame shape selectable), crossfading between them. Brightness is applied in software because the "
+                     + "Photos library from the chosen album in a panel on the right (frame shape selectable), crossfading between them. Calendar events and Reminders add an agenda card with what's coming up today and tomorrow and your open reminders. Brightness is applied in software because the "
                      + "panel's firmware ignores backlight commands.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

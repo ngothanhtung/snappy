@@ -5,5 +5,8 @@
     <!-- Hardened runtime blocks Photos library access without this (Mini Display photo panel). -->
     <key>com.apple.security.personal-information.photos-library</key>
     <true/>
+    <!-- Same for Calendar and Reminders (agenda card); one entitlement covers both. -->
+    <key>com.apple.security.personal-information.calendars</key>
+    <true/>
 </dict>
 </plist>

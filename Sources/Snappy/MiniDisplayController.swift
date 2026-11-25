@@ -7,7 +7,8 @@ import SwiftUI
 /// and `miniDisplayPhotosEnabled` (default off: a Photos slideshow in a 4:3 panel on the right),
 /// with `miniDisplayPhotosAlbum` (PhotoKit album id, "" = All Photos) and
 /// `miniDisplayPhotosInterval` (seconds between photos) and `miniDisplayPhotosAspect`
-/// (card shape, e.g. "4:3").
+/// (card shape, e.g. "4:3"). `miniDisplayCalendarEnabled` / `miniDisplayRemindersEnabled`
+/// (default off) add an agenda card with upcoming events / open reminders.
 @MainActor
 final class MiniDisplayController: ObservableObject {
     static let shared = MiniDisplayController()
@@ -18,6 +19,8 @@ final class MiniDisplayController: ObservableObject {
     static let photosAlbumKey = "miniDisplayPhotosAlbum"
     static let photosIntervalKey = "miniDisplayPhotosInterval"
     static let photosAspectKey = "miniDisplayPhotosAspect"
+    static let calendarKey = "miniDisplayCalendarEnabled"
+    static let remindersKey = "miniDisplayRemindersEnabled"
 
     /// Choices for the seconds between photos.
     static let photoIntervals: [Int] = [5, 10, 15, 30, 60, 120, 300]
@@ -34,9 +37,16 @@ final class MiniDisplayController: ObservableObject {
     @Published private(set) var photoAlbumID: String
     @Published private(set) var photoInterval: Int
     @Published private(set) var photoAspect: MiniDisplayPhotoAspect
+    @Published private(set) var showsCalendar: Bool
+    @Published private(set) var showsReminders: Bool
 
     private let engine: MiniDisplayEngine
     private let photos = MiniDisplayPhotoSource()
+    private let agenda = MiniDisplayAgendaSource()
+    private let calendarItem = NSMenuItem()
+    private let calendarSwitch = NSSwitch()
+    private let remindersItem = NSMenuItem()
+    private let remindersSwitch = NSSwitch()
     private let photosItem = NSMenuItem()
     private let photosSwitch = NSSwitch()
     private let albumItem = NSMenuItem(title: "Album", action: nil, keyEquivalent: "")
@@ -59,6 +69,8 @@ final class MiniDisplayController: ObservableObject {
         photoInterval = Self.photoIntervals.contains(savedInterval) ? savedInterval : 15
         photoAspect = defaults.string(forKey: Self.photosAspectKey).flatMap(MiniDisplayPhotoAspect.init)
             ?? .standard
+        showsCalendar = defaults.bool(forKey: Self.calendarKey)
+        showsReminders = defaults.bool(forKey: Self.remindersKey)
         brightness = savedBrightness
         engine = MiniDisplayEngine(brightness: savedBrightness)
         engine.onState = { [weak self] s in
@@ -76,11 +88,13 @@ final class MiniDisplayController: ObservableObject {
         if isEnabled {
             engine.start()
             if showsPhotos { startPhotos() }
+            startAgenda()
         }
         refreshMenuItems()
     }
 
     func shutdown() {
+        stopAgenda()
         stopPhotos()
         engine.stop()
     }
@@ -120,6 +134,42 @@ final class MiniDisplayController: ObservableObject {
         refreshMenuItems()
     }
 
+    // MARK: Agenda (Calendar + Reminders)
+
+    func setShowsCalendar(_ on: Bool) {
+        guard on != showsCalendar else { return }
+        showsCalendar = on
+        UserDefaults.standard.set(on, forKey: Self.calendarKey)
+        if isEnabled { startAgenda() }
+        refreshMenuItems()
+    }
+
+    func setShowsReminders(_ on: Bool) {
+        guard on != showsReminders else { return }
+        showsReminders = on
+        UserDefaults.standard.set(on, forKey: Self.remindersKey)
+        if isEnabled { startAgenda() }
+        refreshMenuItems()
+    }
+
+    /// Applies the Calendar/Reminders switches: shows the agenda card if either is on.
+    private func startAgenda() {
+        agenda.showsEvents = showsCalendar
+        agenda.showsReminders = showsReminders
+        if agenda.isActive {
+            let box = agenda.current
+            engine.setAgendaSource { box.get() }
+        } else {
+            stopAgenda()
+        }
+    }
+
+    private func stopAgenda() {
+        engine.setAgendaSource(nil)
+        agenda.showsEvents = false
+        agenda.showsReminders = false
+    }
+
     /// Albums to choose from (empty until Photos access is granted).
     func photoAlbums() -> [MiniDisplayPhotoAlbum] { MiniDisplayPhotoSource.albums() }
 
@@ -151,7 +201,9 @@ final class MiniDisplayController: ObservableObject {
         if on {
             engine.start()
             if showsPhotos { startPhotos() }
+            startAgenda()
         } else {
+            stopAgenda()
             stopPhotos()
             engine.stop()
         }
@@ -212,6 +264,10 @@ final class MiniDisplayController: ObservableObject {
                                       syncSwitch, action: #selector(syncSwitched(_:)))
         photosItem.view = makeSwitchRow("Photos", symbol: "photo.on.rectangle",
                                         photosSwitch, action: #selector(photosSwitched(_:)))
+        calendarItem.view = makeSwitchRow("Calendar", symbol: "calendar",
+                                          calendarSwitch, action: #selector(calendarSwitched(_:)))
+        remindersItem.view = makeSwitchRow("Reminders", symbol: "checklist",
+                                           remindersSwitch, action: #selector(remindersSwitched(_:)))
 
         // Album list is built each time the submenu opens (albums change).
         let albumMenu = NSMenu()
@@ -243,7 +299,8 @@ final class MiniDisplayController: ObservableObject {
         aspectItem.image = NSImage(systemSymbolName: "aspectratio", accessibilityDescription: "Frame")
 
         refreshMenuItems()
-        return [statusLine, syncItem, sliderItem, photosItem, albumItem, intervalItem, aspectItem]
+        return [statusLine, syncItem, sliderItem, photosItem, albumItem, intervalItem, aspectItem,
+                calendarItem, remindersItem]
     }
 
     private func refreshMenuItems() {
@@ -254,6 +311,10 @@ final class MiniDisplayController: ObservableObject {
         photosSwitch.state = showsPhotos ? .on : .off
         photosSwitch.isEnabled = isEnabled
         photosSwitch.toolTip = photosProblem
+        calendarSwitch.state = showsCalendar ? .on : .off
+        calendarSwitch.isEnabled = isEnabled
+        remindersSwitch.state = showsReminders ? .on : .off
+        remindersSwitch.isEnabled = isEnabled
         albumItem.isHidden = !showsPhotos
         intervalItem.isHidden = !showsPhotos
         albumItem.title = "Album: " + currentAlbumTitle
@@ -302,6 +363,14 @@ final class MiniDisplayController: ObservableObject {
 
     @objc private func photosSwitched(_ sender: NSSwitch) {
         setShowsPhotos(sender.state == .on)
+    }
+
+    @objc private func calendarSwitched(_ sender: NSSwitch) {
+        setShowsCalendar(sender.state == .on)
+    }
+
+    @objc private func remindersSwitched(_ sender: NSSwitch) {
+        setShowsReminders(sender.state == .on)
     }
 
     /// Title of the chosen album, cached so the menu doesn't hit PhotoKit on every refresh.

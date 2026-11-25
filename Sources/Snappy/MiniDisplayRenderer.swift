@@ -49,8 +49,10 @@ final class MiniDisplayRenderer {
     /// - Parameters:
     ///   - photoPanel: reserve a full-height photo card (shape from `photo.aspect`) at the right edge.
     ///   - photo: what to show there (current photo, and the previous one mid-crossfade).
+    ///   - agenda: calendar events / reminders card, shown after the clock when non-nil.
     func render(_ s: MiniDisplaySnapshot, now: Date = Date(),
-                photoPanel: Bool = false, photo: MiniDisplayPhotoFrame? = nil) -> CGImage? {
+                photoPanel: Bool = false, photo: MiniDisplayPhotoFrame? = nil,
+                agenda: MiniDisplayAgenda? = nil) -> CGImage? {
         guard let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
                                   bytesPerRow: 0, space: space,
                                   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
@@ -67,7 +69,8 @@ final class MiniDisplayRenderer {
         // Cards sized by weight with 16 px gutters. With a photo panel the
         // photo card (full card height, chosen aspect) sits at the right and the dashboard gets the rest.
         let m: CGFloat = 16
-        let weights: [CGFloat] = [420, 420, 400]  // CPU+GPU, RAM+Storage, Clock
+        // CPU+GPU, RAM+Storage, Clock(+Network), then Agenda if shown.
+        let weights: [CGFloat] = agenda == nil ? [420, 420, 400] : [420, 420, 400, 520]
         let photoH = H - 2 * m, photoW = (photoH * (photo?.aspect ?? 4 / 3)).rounded()
         let photoRect = CGRect(x: W - m - photoW, y: m, width: photoW, height: photoH)
         let dashW = photoPanel ? photoRect.minX : W
@@ -85,6 +88,7 @@ final class MiniDisplayRenderer {
         drawProcessors(ctx, rects[0], s)
         drawStorage(ctx, rects[1], s)
         drawClock(ctx, rects[2], s, now)
+        if let agenda { drawAgenda(ctx, rects[3], agenda) }
         if photoPanel { drawPhoto(ctx, photoRect, photo) }
 
         // Software brightness: a black overlay. fw 5.3 accepts SetLight but never changes the backlight.
@@ -207,7 +211,7 @@ final class MiniDisplayRenderer {
 
         // Shrink to fit in case the card gets narrow.
         let hm = tf.string(from: now), day = df.string(from: now)
-        let lunar = "Âm lịch " + LunarCalendar.lunarDate(for: now).shortText
+        let lunar = LunarCalendar.lunarDate(for: now).shortText
         let avail = top.width - 2 * p
         text(ctx, hm, x: top.minX + p, y: top.minY + 100,
              size: fitSize(hm, 88, avail, bold: true), color: textMain, bold: true)
@@ -220,6 +224,61 @@ final class MiniDisplayRenderer {
         let rateSize = min(fitSize(down, 40, avail, bold: true), fitSize(up, 40, avail, bold: true))
         text(ctx, down, x: bottom.minX + p, y: bottom.minY + 122, size: rateSize, color: netColor, bold: true)
         text(ctx, up, x: bottom.minX + p, y: bottom.maxY - p - 6, size: rateSize, color: netColor, bold: true)
+    }
+
+    /// Agenda card: events on top and reminders below when both are on,
+    /// otherwise the one section fills the card.
+    private func drawAgenda(_ ctx: CGContext, _ r: CGRect, _ a: MiniDisplayAgenda) {
+        var sections: [(String, [MiniDisplayAgendaItem], String?, String)] = []
+        if let e = a.events { sections.append(("CALENDAR", e, a.eventsNote, "No more events")) }
+        if let rm = a.reminders { sections.append(("REMINDERS", rm, a.remindersNote, "All done")) }
+        if sections.count == 2 {
+            let (top, bottom) = splitCard(ctx, r)
+            drawAgendaSection(ctx, top, sections[0])
+            drawAgendaSection(ctx, bottom, sections[1])
+        } else if let only = sections.first {
+            drawAgendaSection(ctx, r, only)
+        }
+    }
+
+    private func drawAgendaSection(_ ctx: CGContext, _ r: CGRect,
+                                   _ section: (title: String, items: [MiniDisplayAgendaItem], note: String?, empty: String)) {
+        let p: CGFloat = 28
+        let lineH: CGFloat = 36
+        text(ctx, section.title, x: r.minX + p, y: r.minY + p + 22, size: 28, color: textDim, bold: true)
+        if !section.items.isEmpty {
+            text(ctx, "\(section.items.count)", x: r.maxX - p, y: r.minY + p + 22, size: 28,
+                 color: textDim, bold: true, align: .right)
+        }
+        let firstY = r.minY + p + 22 + 46
+        let capacity = max(1, Int((r.maxY - p + 8 - firstY) / lineH) + 1)
+        if let note = section.note ?? (section.items.isEmpty ? section.empty : nil) {
+            text(ctx, note, x: r.minX + p, y: firstY, size: 24, color: textDim)
+            return
+        }
+        let labelW: CGFloat = 112
+        for (i, item) in section.items.prefix(capacity).enumerated() {
+            let y = firstY + CGFloat(i) * lineH
+            // Calendar / list colour dot, time label, then the title cut to fit.
+            ctx.setFillColor(item.color)
+            ctx.fillEllipse(in: CGRect(x: r.minX + p, y: y - 15, width: 12, height: 12))
+            let label = truncated(item.label, size: 22, width: labelW - 8, bold: false)
+            text(ctx, label, x: r.minX + p + 22, y: y, size: 22,
+                 color: item.isAlert ? Self.rgb(0xFF5252) : textDim)
+            let tx = r.minX + p + 22 + labelW
+            text(ctx, truncated(item.title, size: 24, width: r.maxX - p - tx, bold: false),
+                 x: tx, y: y, size: 24, color: textMain)
+        }
+    }
+
+    /// `s` cut with an ellipsis so it fits in `width`.
+    private func truncated(_ s: String, size: CGFloat, width: CGFloat, bold: Bool) -> String {
+        guard textWidth(s, size: size, bold: bold) > width else { return s }
+        var chars = Array(s)
+        while !chars.isEmpty && textWidth(String(chars) + "\u{2026}", size: size, bold: bold) > width {
+            chars.removeLast()
+        }
+        return String(chars).trimmingCharacters(in: .whitespaces) + "\u{2026}"
     }
 
     /// Photo card: the photo scaled to fill the card (centre-cropped), clipped

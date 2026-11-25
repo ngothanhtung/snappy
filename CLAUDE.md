@@ -240,6 +240,12 @@ toggle that starts/stops streaming and frees the serial port) and a Settings sec
   (`Resources/Snappy.entitlements`, applied by `bundle.sh` under hardened
   runtime). Launch with `open` when testing — running the binary from a
   terminal attributes the Photos prompt to the terminal and access is denied.
+- Agenda card ("Calendar" / "Reminders" switches, `miniDisplayCalendarEnabled` /
+  `miniDisplayRemindersEnabled`): `MiniDisplayAgendaSource` reads EventKit (refresh
+  every 60 s + `EKEventStoreChanged`); selection/order/labels are pure in
+  `SnappyCore/AgendaFormatting.swift`. Needs the `NSCalendars*`/`NSReminders*`
+  usage strings and the `com.apple.security.personal-information.calendars`
+  entitlement (covers reminders too).
 - The clock card also shows the Vietnamese lunar date (`SnappyCore/LunarCalendar.swift`,
   Hồ Ngọc Đức's algorithm at UTC+7 — not Foundation's `.chinese` calendar, which is
   UTC+8 and puts Tết on a different day in e.g. 1985 and 2007).

@@ -75,6 +75,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <!-- Mini Display: slideshow of the Photos library in the photo panel. -->
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Snappy shows a slideshow of your photos on the USB mini display. Photos never leave your Mac.</string>
+    <!-- Mini Display: agenda card with upcoming events and open reminders. -->
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Snappy shows your upcoming calendar events on the USB mini display. Nothing leaves your Mac.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Snappy shows your upcoming calendar events on the USB mini display. Nothing leaves your Mac.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Snappy shows your open reminders on the USB mini display. Nothing leaves your Mac.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Snappy shows your open reminders on the USB mini display. Nothing leaves your Mac.</string>
     <!-- Uninstaller: asks Finder to trash apps that need an admin password. -->
     <key>NSAppleEventsUsageDescription</key>
     <string>Snappy asks Finder to move apps you uninstall to the Trash, so macOS can request your administrator password when an app needs it.</string>
