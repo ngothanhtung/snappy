@@ -72,6 +72,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Snappy shows the name of your Wi-Fi network in Mac Health. Your location is never used or stored.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Snappy shows the name of your Wi-Fi network in Mac Health. Your location is never used or stored.</string>
+    <!-- Mini Display: slideshow of the Photos library in the photo panel. -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Snappy shows a slideshow of your photos on the USB mini display. Photos never leave your Mac.</string>
     <!-- Uninstaller: asks Finder to trash apps that need an admin password. -->
     <key>NSAppleEventsUsageDescription</key>
     <string>Snappy asks Finder to move apps you uninstall to the Trash, so macOS can request your administrator password when an app needs it.</string>
@@ -108,7 +111,9 @@ if [ -z "$IDENTITY" ]; then
 fi
 if [ -n "$IDENTITY" ]; then
     echo "    Signing with stable identity: $IDENTITY"
-    codesign --force --options runtime --sign "$IDENTITY" "$APP"
+    # Entitlements: hardened runtime needs the Photos one for the mini display photo panel.
+    codesign --force --options runtime --entitlements "$ROOT/Resources/Snappy.entitlements" \
+        --sign "$IDENTITY" "$APP"
 else
     echo "    WARNING: no code-signing identity found — using ad-hoc signature."
     echo "    The Accessibility grant will NOT survive rebuilds; you must"

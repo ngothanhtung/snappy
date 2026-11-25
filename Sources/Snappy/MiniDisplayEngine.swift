@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import SnappyCore
 
@@ -13,8 +14,10 @@ final class MiniDisplayEngine: @unchecked Sendable {
     }
 
     var onState: ((State) -> Void)?
-    /// Frames per second. The panel needs a still re-sent ~4x/s anyway.
+    /// Frames per second. The panel needs a still re-sent ~4x/s anyway;
+    /// photo crossfades briefly run faster so they look smooth.
     let fps = 4.0
+    let transitionFps = 20.0
 
     private let lock = NSLock()
     private var running = false
@@ -23,7 +26,17 @@ final class MiniDisplayEngine: @unchecked Sendable {
     private var lastState: State = .stopped
     private var done = DispatchSemaphore(value: 0)
 
+    private var photoSource: (() -> MiniDisplayPhotoFrame)?
+
     init(brightness: Int) { self.brightness = brightness }
+
+    /// Supplies the photo shown in the right-hand 4:3 panel, or nil for the
+    /// plain full-width dashboard. Called from the engine thread every frame.
+    func setPhotoSource(_ source: (() -> MiniDisplayPhotoFrame)?) {
+        locked { photoSource = source }
+    }
+
+    private var currentPhotoSource: (() -> MiniDisplayPhotoFrame)? { locked { photoSource } }
 
     private func locked<T>(_ f: () -> T) -> T {
         lock.lock()
@@ -127,10 +140,11 @@ final class MiniDisplayEngine: @unchecked Sendable {
                 var lastSample = Date()
                 var lastPreview = Date.distantPast
                 var checkedJpeg = false
-                let interval = 1.0 / fps
-
+                var jpegQuality: CGFloat = 0.85
                 while isRunning {
                     let t0 = Date()
+                    let photo = currentPhotoSource?()
+                    let interval = 1.0 / (photo?.isTransitioning == true ? transitionFps : fps)
                     if let b = takeBrightness() {
                         try device.setBrightness(b)
                         try device.keepAlive()
@@ -140,8 +154,8 @@ final class MiniDisplayEngine: @unchecked Sendable {
                         snap = sensors.sample()
                         lastSample = t0
                     }
-                    guard let img = renderer.render(snap, now: t0),
-                          let jpeg = MiniDisplayJPEG.encode(img, maxBytes: info.maxJpegBytes) else {
+                    guard let img = renderer.render(snap, now: t0, photoPanel: photo != nil, photo: photo),
+                          let jpeg = MiniDisplayJPEG.encode(img, maxBytes: info.maxJpegBytes, quality: &jpegQuality) else {
                         MiniDisplayLog.log("render/encode failed")
                         nap(1)
                         continue

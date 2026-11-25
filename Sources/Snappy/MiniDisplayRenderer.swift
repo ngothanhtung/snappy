@@ -35,6 +35,7 @@ final class MiniDisplayRenderer {
     private let memColor = rgb(0x69F0AE)
     private let netColor = rgb(0xFFD54F)
     private let diskColor = rgb(0xFF8A65)
+    private let lunarColor = rgb(0xF48FB1)
 
     private func heat(_ t: Double?) -> CGColor {
         guard let t else { return textDim }
@@ -45,7 +46,11 @@ final class MiniDisplayRenderer {
 
     // MARK: Drawing
 
-    func render(_ s: MiniDisplaySnapshot, now: Date = Date()) -> CGImage? {
+    /// - Parameters:
+    ///   - photoPanel: reserve a full-height photo card (shape from `photo.aspect`) at the right edge.
+    ///   - photo: what to show there (current photo, and the previous one mid-crossfade).
+    func render(_ s: MiniDisplaySnapshot, now: Date = Date(),
+                photoPanel: Bool = false, photo: MiniDisplayPhotoFrame? = nil) -> CGImage? {
         guard let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
                                   bytesPerRow: 0, space: space,
                                   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
@@ -59,10 +64,14 @@ final class MiniDisplayRenderer {
             ctx.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: H), options: [])
         }
 
-        // Cards sized by weight with 16 px gutters.
+        // Cards sized by weight with 16 px gutters. With a photo panel the
+        // photo card (full card height, chosen aspect) sits at the right and the dashboard gets the rest.
         let m: CGFloat = 16
-        let weights: [CGFloat] = [480, 345, 345, 360, 400]
-        let usable = W - m * CGFloat(weights.count + 1)
+        let weights: [CGFloat] = [420, 420, 400]  // CPU+GPU, RAM+Storage, Clock
+        let photoH = H - 2 * m, photoW = (photoH * (photo?.aspect ?? 4 / 3)).rounded()
+        let photoRect = CGRect(x: W - m - photoW, y: m, width: photoW, height: photoH)
+        let dashW = photoPanel ? photoRect.minX : W
+        let usable = dashW - m * CGFloat(weights.count + 1)
         let total = weights.reduce(0, +)
         var x = m
         var rects: [CGRect] = []
@@ -73,11 +82,10 @@ final class MiniDisplayRenderer {
         }
         for r in rects { drawCard(ctx, r) }
 
-        drawCPU(ctx, rects[0], s)
-        drawGPU(ctx, rects[1], s)
-        drawMemory(ctx, rects[2], s)
-        drawDisk(ctx, rects[3], s)
-        drawClock(ctx, rects[4], s, now)
+        drawProcessors(ctx, rects[0], s)
+        drawStorage(ctx, rects[1], s)
+        drawClock(ctx, rects[2], s, now)
+        if photoPanel { drawPhoto(ctx, photoRect, photo) }
 
         // Software brightness: a black overlay. fw 5.3 accepts SetLight but never changes the backlight.
         let b = max(0.05, min(1, brightness))
@@ -129,83 +137,132 @@ final class MiniDisplayRenderer {
         ctx.strokePath()
     }
 
-    private func drawCPU(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
-        let p: CGFloat = 28
-        text(ctx, "CPU", x: r.minX + p, y: r.minY + p + 30, size: 30, color: textDim, bold: true)
-        text(ctx, temp(s.cpuTemp), x: r.maxX - p, y: r.minY + p + 30, size: 30,
-             color: heat(s.cpuTemp), bold: true, align: .right)
-        bigNumber(ctx, pct(s.cpuTotal), x: r.minX + p, y: r.minY + 175)
-
-        // One bar per core
-        let cores = s.cpuCores.isEmpty ? [s.cpuTotal] : s.cpuCores
-        let area = CGRect(x: r.minX + p, y: r.minY + 230, width: r.width - 2 * p, height: r.height - 230 - p)
-        let gap: CGFloat = 10
-        let bw = (area.width - gap * CGFloat(cores.count - 1)) / CGFloat(cores.count)
-        for (i, v) in cores.enumerated() {
-            let bx = area.minX + CGFloat(i) * (bw + gap)
-            let col = CGRect(x: bx, y: area.minY, width: bw, height: area.height)
-            roundRect(ctx, col, radius: 6, color: track)
-            let h = max(6, area.height * CGFloat(min(1, max(0, v))))
-            roundRect(ctx, CGRect(x: bx, y: area.maxY - h, width: bw, height: h), radius: 6, color: cpuColor)
-        }
+    /// Splits a card into top and bottom halves divided by a hairline.
+    private func splitCard(_ ctx: CGContext, _ r: CGRect) -> (CGRect, CGRect) {
+        let half = r.height / 2
+        ctx.setFillColor(cardStroke)
+        ctx.fill(CGRect(x: r.minX + 28, y: r.midY - 1, width: r.width - 56, height: 2))
+        return (CGRect(x: r.minX, y: r.minY, width: r.width, height: half),
+                CGRect(x: r.minX, y: r.minY + half, width: r.width, height: half))
     }
 
-    private func drawGPU(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
-        let p: CGFloat = 28
-        text(ctx, "GPU", x: r.minX + p, y: r.minY + p + 30, size: 30, color: textDim, bold: true)
-        text(ctx, temp(s.gpuTemp), x: r.maxX - p, y: r.minY + p + 30, size: 30,
-             color: heat(s.gpuTemp), bold: true, align: .right)
-        bigNumber(ctx, s.gpu.map(pct) ?? "--", x: r.minX + p, y: r.minY + 175)
-        bar(ctx, CGRect(x: r.minX + p, y: r.maxY - p - 40, width: r.width - 2 * p, height: 40),
-            value: s.gpu ?? 0, color: gpuColor)
-        text(ctx, "SoC max " + temp(s.socTemp), x: r.minX + p, y: r.maxY - p - 64, size: 28,
-             color: heat(s.socTemp))
+    /// CPU on top, GPU below.
+    private func drawProcessors(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
+        let (top, bottom) = splitCard(ctx, r)
+        drawGauge(ctx, top, title: "CPU", badge: (temp(s.cpuTemp), heat(s.cpuTemp)),
+                  value: s.cpuTotal, number: pct(s.cpuTotal), color: cpuColor, notes: [])
+        drawGauge(ctx, bottom, title: "GPU", badge: (temp(s.gpuTemp), heat(s.gpuTemp)),
+                  value: s.gpu ?? 0, number: s.gpu.map(pct) ?? "--", color: gpuColor,
+                  notes: [("SoC " + temp(s.socTemp), heat(s.socTemp))])
     }
 
-    private func drawMemory(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
-        let p: CGFloat = 28
+    /// RAM on top, storage below.
+    private func drawStorage(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
+        let (top, bottom) = splitCard(ctx, r)
         let gb = 1024.0 * 1024 * 1024
-        let used = Double(s.memUsed) / gb, total = Double(s.memTotal) / gb
-        let frac = total > 0 ? used / total : 0
-        text(ctx, "RAM", x: r.minX + p, y: r.minY + p + 30, size: 30, color: textDim, bold: true)
-        text(ctx, pct(frac), x: r.maxX - p, y: r.minY + p + 30, size: 30, color: memColor, bold: true, align: .right)
-        bigNumber(ctx, String(format: "%.1f", used), x: r.minX + p, y: r.minY + 175)
-        text(ctx, String(format: "/ %.1f GB", total), x: r.minX + p, y: r.minY + 225, size: 32, color: textDim)
-        bar(ctx, CGRect(x: r.minX + p, y: r.maxY - p - 40, width: r.width - 2 * p, height: 40),
-            value: frac, color: memColor)
-    }
+        let used = Double(s.memUsed) / gb, memTotal = Double(s.memTotal) / gb
+        let memFrac = memTotal > 0 ? used / memTotal : 0
+        drawGauge(ctx, top, title: "RAM", badge: (pct(memFrac), memColor),
+                  value: memFrac, number: String(format: "%.1f", used), color: memColor,
+                  notes: [(String(format: "/ %.1f GB", memTotal), textDim)])
 
-    private func drawDisk(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
-        let p: CGFloat = 28
         let total = Double(s.diskTotal), free = Double(s.diskFree)
         let usedFrac = total > 0 ? (total - free) / total : 0
-        text(ctx, "Storage", x: r.minX + p, y: r.minY + p + 30, size: 30, color: textDim, bold: true)
-        text(ctx, temp(s.diskTemp), x: r.maxX - p, y: r.minY + p + 30, size: 30,
-             color: heat(s.diskTemp), bold: true, align: .right)
         let f = MiniDisplayFormat.size(free), t = MiniDisplayFormat.size(total)
-        bigNumber(ctx, f.number, x: r.minX + p, y: r.minY + 175)
-        text(ctx, "\(f.unit) free / \(t.number) \(t.unit)", x: r.minX + p,
-             y: r.minY + 222, size: 28, color: textDim)
-        text(ctx, "Read  " + rate(s.diskRead), x: r.minX + p, y: r.maxY - p - 104, size: 28, color: diskColor, bold: true)
-        text(ctx, "Write " + rate(s.diskWrite), x: r.minX + p, y: r.maxY - p - 64, size: 28, color: diskColor, bold: true)
-        bar(ctx, CGRect(x: r.minX + p, y: r.maxY - p - 40, width: r.width - 2 * p, height: 40),
-            value: usedFrac, color: diskColor)
+        drawGauge(ctx, bottom, title: "STORAGE", badge: (temp(s.diskTemp), heat(s.diskTemp)),
+                  value: usedFrac, number: f.number, color: diskColor,
+                  notes: [("\(f.unit) free / \(t.number) \(t.unit)", textDim),
+                          ("R " + rate(s.diskRead) + "  W " + rate(s.diskWrite), diskColor)])
     }
 
+    /// Half-card: title + badge (temperature or %), big number with up to two
+    /// small note lines on its right (each dropped if it doesn't fit), and a bar.
+    private func drawGauge(_ ctx: CGContext, _ r: CGRect, title: String, badge: (String, CGColor),
+                           value: Double, number: String, color: CGColor, notes: [(String, CGColor)]) {
+        let p: CGFloat = 28
+        let baseline = r.minY + 140
+        text(ctx, title, x: r.minX + p, y: r.minY + p + 22, size: 28, color: textDim, bold: true)
+        text(ctx, badge.0, x: r.maxX - p, y: r.minY + p + 22, size: 28, color: badge.1, bold: true, align: .right)
+        let numberWidth = bigNumber(ctx, number, x: r.minX + p, y: baseline, size: 84)
+        let room = r.width - 2 * p - numberWidth - 16
+        for (k, note) in notes.prefix(2).enumerated() {
+            guard textWidth(note.0, size: 22, bold: false) <= room else { continue }
+            // Last note sits on the number's baseline, the one before it above.
+            let y = baseline - CGFloat(notes.prefix(2).count - 1 - k) * 30
+            text(ctx, note.0, x: r.maxX - p, y: y, size: 22, color: note.1, align: .right)
+        }
+        bar(ctx, CGRect(x: r.minX + p, y: r.maxY - p - 18, width: r.width - 2 * p, height: 18),
+            value: value, color: color)
+    }
+
+    /// Clock on top, network below.
     private func drawClock(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot, _ now: Date) {
         let p: CGFloat = 28
+        let (top, bottom) = splitCard(ctx, r)
         let tf = DateFormatter()
         tf.dateFormat = "HH:mm"
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US")
-        df.dateFormat = "EEEE, dd/MM/yyyy"
+        df.dateFormat = "EEEE, yyyy-MM-dd"
 
-        let hm = tf.string(from: now)
-        text(ctx, hm, x: r.minX + p, y: r.minY + 165, size: 120, color: textMain, bold: true)
-        text(ctx, df.string(from: now), x: r.minX + p, y: r.minY + 225, size: 32, color: textDim)
+        // Shrink to fit in case the card gets narrow.
+        let hm = tf.string(from: now), day = df.string(from: now)
+        let lunar = "Âm lịch " + LunarCalendar.lunarDate(for: now).shortText
+        let avail = top.width - 2 * p
+        text(ctx, hm, x: top.minX + p, y: top.minY + 100,
+             size: fitSize(hm, 88, avail, bold: true), color: textMain, bold: true)
+        let small = min(fitSize(day, 26, avail, bold: false), fitSize(lunar, 26, avail, bold: false))
+        text(ctx, day, x: top.minX + p, y: top.minY + 142, size: small, color: textDim)
+        text(ctx, lunar, x: top.minX + p, y: top.minY + 178, size: small, color: lunarColor)
 
-        text(ctx, "↓ " + rate(s.netRx), x: r.minX + p, y: r.maxY - p - 60, size: 40, color: netColor, bold: true)
-        text(ctx, "↑ " + rate(s.netTx), x: r.minX + p, y: r.maxY - p - 8, size: 40, color: netColor, bold: true)
+        text(ctx, "NETWORK", x: bottom.minX + p, y: bottom.minY + p + 22, size: 28, color: textDim, bold: true)
+        let down = "\u{2193} " + rate(s.netRx), up = "\u{2191} " + rate(s.netTx)
+        let rateSize = min(fitSize(down, 40, avail, bold: true), fitSize(up, 40, avail, bold: true))
+        text(ctx, down, x: bottom.minX + p, y: bottom.minY + 122, size: rateSize, color: netColor, bold: true)
+        text(ctx, up, x: bottom.minX + p, y: bottom.maxY - p - 6, size: rateSize, color: netColor, bold: true)
+    }
+
+    /// Photo card: the photo scaled to fill the card (centre-cropped), clipped
+    /// to its corners; during a change the new photo fades in over the old one.
+    private func drawPhoto(_ ctx: CGContext, _ r: CGRect, _ frame: MiniDisplayPhotoFrame?) {
+        let path = CGPath(roundedRect: r, cornerWidth: 22, cornerHeight: 22, transform: nil)
+        if let image = frame?.image {
+            ctx.saveGState()
+            ctx.addPath(path)
+            ctx.clip()
+            if let previous = frame?.previous {
+                fill(ctx, r, with: previous)
+                // Ease in-out so the fade starts and ends softly.
+                let t = frame?.progress ?? 1
+                ctx.setAlpha(CGFloat(t * t * (3 - 2 * t)))
+            }
+            fill(ctx, r, with: image)
+            ctx.restoreGState()
+        } else {
+            drawCard(ctx, r)
+            text(ctx, "PHOTOS", x: r.minX + 28, y: r.minY + 58, size: 30, color: textDim, bold: true)
+            text(ctx, "Loading\u{2026}", x: r.minX + 28, y: r.midY + 10, size: 26, color: textDim)
+        }
+        ctx.addPath(path)
+        ctx.setStrokeColor(cardStroke)
+        ctx.setLineWidth(2)
+        ctx.strokePath()
+    }
+
+    /// Draws `image` aspect-filling `r` (centre crop) in the flipped layout context.
+    private func fill(_ ctx: CGContext, _ r: CGRect, with image: CGImage) {
+        guard image.width > 0, image.height > 0 else { return }
+        let aspect = CGFloat(image.width) / CGFloat(image.height)
+        var w = r.width, h = w / aspect
+        if h < r.height { h = r.height; w = h * aspect }
+        let dst = CGRect(x: r.midX - w / 2, y: r.midY - h / 2, width: w, height: h)
+        ctx.saveGState()
+        // The context is flipped for top-down layout; flip the image back.
+        ctx.translateBy(x: 0, y: dst.minY + dst.maxY)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.interpolationQuality = .high
+        ctx.draw(image, in: dst)
+        ctx.restoreGState()
     }
 
     // MARK: Helpers
@@ -227,24 +284,43 @@ final class MiniDisplayRenderer {
         roundRect(ctx, CGRect(x: r.minX, y: r.minY, width: w, height: r.height), radius: r.height / 2, color: color)
     }
 
-    /// Big number: integer part large, ".x%" tail smaller on the same baseline.
-    private func bigNumber(_ ctx: CGContext, _ s: String, x: CGFloat, y: CGFloat) {
+    /// Big number: integer part large, ".x%" tail half size on the same baseline.
+    /// Returns the total width drawn.
+    @discardableResult
+    private func bigNumber(_ ctx: CGContext, _ s: String, x: CGFloat, y: CGFloat, size: CGFloat = 104) -> CGFloat {
         let parts = s.split(separator: ".", maxSplits: 1)
         let head = String(parts.first ?? "")
-        let w = text(ctx, head, x: x, y: y, size: 104, color: textMain, bold: true)
+        var w = text(ctx, head, x: x, y: y, size: size, color: textMain, bold: true)
         if parts.count > 1 {
-            text(ctx, "." + parts[1], x: x + w + 2, y: y, size: 52, color: textMain, bold: true)
+            w += 2 + text(ctx, "." + parts[1], x: x + w + 2, y: y, size: size / 2, color: textMain, bold: true)
         }
+        return w
     }
 
     enum Align { case left, right }
+
+    private func font(_ size: CGFloat, bold: Bool) -> CTFont {
+        CTFontCreateUIFontForLanguage(bold ? .emphasizedSystem : .system, size, nil)
+            ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+    }
+
+    private func textWidth(_ s: String, size: CGFloat, bold: Bool) -> CGFloat {
+        let attrs = [NSAttributedString.Key(kCTFontAttributeName as String): font(size, bold: bold)]
+        let line = CTLineCreateWithAttributedString(NSAttributedString(string: s, attributes: attrs))
+        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+    }
+
+    /// Largest size up to `size` at which `s` fits in `width`.
+    private func fitSize(_ s: String, _ size: CGFloat, _ width: CGFloat, bold: Bool) -> CGFloat {
+        let w = textWidth(s, size: size, bold: bold)
+        return w <= width ? size : floor(size * width / w)
+    }
 
     /// Draws text with its baseline at y and returns the line width.
     @discardableResult
     private func text(_ ctx: CGContext, _ s: String, x: CGFloat, y: CGFloat, size: CGFloat,
                       color: CGColor, bold: Bool = false, align: Align = .left) -> CGFloat {
-        let font = CTFontCreateUIFontForLanguage(bold ? .emphasizedSystem : .system, size, nil)
-            ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+        let font = font(size, bold: bold)
         let attrs: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
@@ -261,10 +337,22 @@ final class MiniDisplayRenderer {
 enum MiniDisplayJPEG {
     static func encode(_ image: CGImage, maxBytes: Int) -> Data? {
         var q: CGFloat = 0.85
+        return encode(image, maxBytes: maxBytes, quality: &q)
+    }
+
+    /// Adaptive variant for streaming: starts at `quality` (the value that worked
+    /// last frame), steps down until the frame fits, and nudges it back up when
+    /// there is plenty of headroom, so most frames need a single encode.
+    static func encode(_ image: CGImage, maxBytes: Int, quality: inout CGFloat) -> Data? {
+        var q = min(0.85, max(0.3, quality))
         while q >= 0.3 {
-            if let d = encode(image, quality: q), d.count <= maxBytes { return d }
+            if let d = encode(image, quality: q), d.count <= maxBytes {
+                quality = d.count < maxBytes * 7 / 10 ? min(0.85, q + 0.05) : q
+                return d
+            }
             q -= 0.05
         }
+        quality = 0.3
         return encode(image, quality: 0.25)
     }
 

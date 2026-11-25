@@ -226,6 +226,23 @@ toggle that starts/stops streaming and frees the serial port) and a Settings sec
 - Temperatures use private `IOHIDEventSystemClient` via `dlsym`
   (`MiniDisplayThermal`); M1-family only exposes PMU sensors (`tdie*` → CPU,
   `TPxg` → GPU, `NAND` → SSD).
+- Photos panel (`miniDisplayPhotosEnabled`, "Photos" switch in the menu/Settings):
+  `MiniDisplayPhotoSource` shows a random image from the chosen album
+  (`miniDisplayPhotosAlbum`, "" = All Photos; menu "Album" submenu / Settings) every
+  `miniDisplayPhotosInterval` s (5 s–5 min), crossfading over 1 s — the engine runs
+  at 20 fps only during the fade, otherwise 4 fps — in the
+  full-height card at the right of the screen, shaped by `miniDisplayPhotosAspect`
+  (16:9 … 3:4, default 4:3; "Frame" submenu / Settings) (only photos stored on this Mac: with Optimize Mac
+  Storage, PhotoKit fails on cloud-only originals — 3164 / CloudPhotoLibrary
+  1005 — so those are skipped and remembered); the dashboard cards shrink into the rest. Needs
+  `NSPhotoLibraryUsageDescription` plus the
+  `com.apple.security.personal-information.photos-library` entitlement
+  (`Resources/Snappy.entitlements`, applied by `bundle.sh` under hardened
+  runtime). Launch with `open` when testing — running the binary from a
+  terminal attributes the Photos prompt to the terminal and access is denied.
+- The clock card also shows the Vietnamese lunar date (`SnappyCore/LunarCalendar.swift`,
+  Hồ Ngọc Đức's algorithm at UTC+7 — not Foundation's `.chinese` calendar, which is
+  UTC+8 and puts Tết on a different day in e.g. 1985 and 2007).
 - Only one process can own the serial port — quit any other panel app first.
 - Dev: set `SNAPPY_MINIDISPLAY_DEBUG_DIR=/some/dir` to get `minidisplay.log`
   and a `preview.jpg` of the frame being sent; otherwise logs go to NSLog
