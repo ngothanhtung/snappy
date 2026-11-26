@@ -21,6 +21,8 @@ final class MiniDisplayController: ObservableObject {
     static let photosAspectKey = "miniDisplayPhotosAspect"
     static let calendarKey = "miniDisplayCalendarEnabled"
     static let remindersKey = "miniDisplayRemindersEnabled"
+    static let claudeKey = "miniDisplayClaudeEnabled"
+    static let topAppsKey = "miniDisplayTopAppsEnabled"
 
     /// Choices for the seconds between photos.
     static let photoIntervals: [Int] = [5, 10, 15, 30, 60, 120, 300]
@@ -39,6 +41,8 @@ final class MiniDisplayController: ObservableObject {
     @Published private(set) var photoAspect: MiniDisplayPhotoAspect
     @Published private(set) var showsCalendar: Bool
     @Published private(set) var showsReminders: Bool
+    @Published private(set) var showsClaude: Bool
+    @Published private(set) var showsTopApps: Bool
 
     private let engine: MiniDisplayEngine
     private let photos = MiniDisplayPhotoSource()
@@ -47,6 +51,11 @@ final class MiniDisplayController: ObservableObject {
     private let calendarSwitch = NSSwitch()
     private let remindersItem = NSMenuItem()
     private let remindersSwitch = NSSwitch()
+    private let claudeItem = NSMenuItem()
+    private let claudeSwitch = NSSwitch()
+    private let topAppsItem = NSMenuItem()
+    private let topAppsSwitch = NSSwitch()
+    private var claudeRetained = false
     private let photosItem = NSMenuItem()
     private let photosSwitch = NSSwitch()
     private let albumItem = NSMenuItem(title: "Album", action: nil, keyEquivalent: "")
@@ -71,8 +80,11 @@ final class MiniDisplayController: ObservableObject {
             ?? .standard
         showsCalendar = defaults.bool(forKey: Self.calendarKey)
         showsReminders = defaults.bool(forKey: Self.remindersKey)
+        showsClaude = defaults.bool(forKey: Self.claudeKey)
+        showsTopApps = defaults.bool(forKey: Self.topAppsKey)
         brightness = savedBrightness
         engine = MiniDisplayEngine(brightness: savedBrightness)
+        engine.setShowsTopApps(showsTopApps)
         engine.onState = { [weak self] s in
             MainActor.assumeIsolated { self?.apply(state: s) }
         }
@@ -89,11 +101,13 @@ final class MiniDisplayController: ObservableObject {
             engine.start()
             if showsPhotos { startPhotos() }
             startAgenda()
+            if showsClaude { startClaude() }
         }
         refreshMenuItems()
     }
 
     func shutdown() {
+        stopClaude()
         stopAgenda()
         stopPhotos()
         engine.stop()
@@ -170,6 +184,38 @@ final class MiniDisplayController: ObservableObject {
         agenda.showsReminders = false
     }
 
+    // MARK: Top apps card
+
+    func setShowsTopApps(_ on: Bool) {
+        guard on != showsTopApps else { return }
+        showsTopApps = on
+        UserDefaults.standard.set(on, forKey: Self.topAppsKey)
+        engine.setShowsTopApps(on)
+        refreshMenuItems()
+    }
+
+    // MARK: Claude plan usage card
+
+    func setShowsClaude(_ on: Bool) {
+        guard on != showsClaude else { return }
+        showsClaude = on
+        UserDefaults.standard.set(on, forKey: Self.claudeKey)
+        if on && isEnabled { startClaude() } else { stopClaude() }
+        refreshMenuItems()
+    }
+
+    private func startClaude() {
+        let monitor = ClaudeLimitsMonitor.shared
+        if !claudeRetained { monitor.retain(); claudeRetained = true }
+        let box = monitor.box
+        engine.setClaudeSource { box.get() }
+    }
+
+    private func stopClaude() {
+        engine.setClaudeSource(nil)
+        if claudeRetained { ClaudeLimitsMonitor.shared.release(); claudeRetained = false }
+    }
+
     /// Albums to choose from (empty until Photos access is granted).
     func photoAlbums() -> [MiniDisplayPhotoAlbum] { MiniDisplayPhotoSource.albums() }
 
@@ -202,7 +248,9 @@ final class MiniDisplayController: ObservableObject {
             engine.start()
             if showsPhotos { startPhotos() }
             startAgenda()
+            if showsClaude { startClaude() }
         } else {
+            stopClaude()
             stopAgenda()
             stopPhotos()
             engine.stop()
@@ -268,6 +316,10 @@ final class MiniDisplayController: ObservableObject {
                                           calendarSwitch, action: #selector(calendarSwitched(_:)))
         remindersItem.view = makeSwitchRow("Reminders", symbol: "checklist",
                                            remindersSwitch, action: #selector(remindersSwitched(_:)))
+        claudeItem.view = makeSwitchRow("Claude Usage", symbol: "sparkles",
+                                        claudeSwitch, action: #selector(claudeSwitched(_:)))
+        topAppsItem.view = makeSwitchRow("Top Apps", symbol: "list.number",
+                                         topAppsSwitch, action: #selector(topAppsSwitched(_:)))
 
         // Album list is built each time the submenu opens (albums change).
         let albumMenu = NSMenu()
@@ -300,7 +352,7 @@ final class MiniDisplayController: ObservableObject {
 
         refreshMenuItems()
         return [statusLine, syncItem, sliderItem, photosItem, albumItem, intervalItem, aspectItem,
-                calendarItem, remindersItem]
+                topAppsItem, calendarItem, remindersItem, claudeItem]
     }
 
     private func refreshMenuItems() {
@@ -315,6 +367,10 @@ final class MiniDisplayController: ObservableObject {
         calendarSwitch.isEnabled = isEnabled
         remindersSwitch.state = showsReminders ? .on : .off
         remindersSwitch.isEnabled = isEnabled
+        claudeSwitch.state = showsClaude ? .on : .off
+        claudeSwitch.isEnabled = isEnabled
+        topAppsSwitch.state = showsTopApps ? .on : .off
+        topAppsSwitch.isEnabled = isEnabled
         albumItem.isHidden = !showsPhotos
         intervalItem.isHidden = !showsPhotos
         albumItem.title = "Album: " + currentAlbumTitle
@@ -371,6 +427,14 @@ final class MiniDisplayController: ObservableObject {
 
     @objc private func remindersSwitched(_ sender: NSSwitch) {
         setShowsReminders(sender.state == .on)
+    }
+
+    @objc private func topAppsSwitched(_ sender: NSSwitch) {
+        setShowsTopApps(sender.state == .on)
+    }
+
+    @objc private func claudeSwitched(_ sender: NSSwitch) {
+        setShowsClaude(sender.state == .on)
     }
 
     /// Title of the chosen album, cached so the menu doesn't hit PhotoKit on every refresh.

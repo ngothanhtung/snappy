@@ -36,6 +36,7 @@ final class MiniDisplayRenderer {
     private let netColor = rgb(0xFFD54F)
     private let diskColor = rgb(0xFF8A65)
     private let lunarColor = rgb(0xF48FB1)
+    private let claudeColor = rgb(0xD97757)
 
     private func heat(_ t: Double?) -> CGColor {
         guard let t else { return textDim }
@@ -52,7 +53,9 @@ final class MiniDisplayRenderer {
     ///   - agenda: calendar events / reminders card, shown after the clock when non-nil.
     func render(_ s: MiniDisplaySnapshot, now: Date = Date(),
                 photoPanel: Bool = false, photo: MiniDisplayPhotoFrame? = nil,
-                agenda: MiniDisplayAgenda? = nil) -> CGImage? {
+                agenda: MiniDisplayAgenda? = nil,
+                claude: ClaudeLimitsMonitor.Snapshot? = nil,
+                topApps: Bool = false) -> CGImage? {
         guard let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
                                   bytesPerRow: 0, space: space,
                                   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
@@ -70,7 +73,11 @@ final class MiniDisplayRenderer {
         // photo card (full card height, chosen aspect) sits at the right and the dashboard gets the rest.
         let m: CGFloat = 16
         // CPU+GPU, RAM+Storage, Clock(+Network), then Agenda if shown.
-        let weights: [CGFloat] = agenda == nil ? [420, 420, 400] : [420, 420, 400, 520]
+        // CPU+GPU, RAM+Storage, Clock(+Network), then the optional Claude and Agenda cards.
+        var weights: [CGFloat] = [420, 420, 400]
+        if topApps { weights.append(460) }
+        if claude != nil { weights.append(400) }
+        if agenda != nil { weights.append(520) }
         let photoH = H - 2 * m, photoW = (photoH * (photo?.aspect ?? 4 / 3)).rounded()
         let photoRect = CGRect(x: W - m - photoW, y: m, width: photoW, height: photoH)
         let dashW = photoPanel ? photoRect.minX : W
@@ -88,7 +95,10 @@ final class MiniDisplayRenderer {
         drawProcessors(ctx, rects[0], s)
         drawStorage(ctx, rects[1], s)
         drawClock(ctx, rects[2], s, now)
-        if let agenda { drawAgenda(ctx, rects[3], agenda) }
+        var next = 3
+        if topApps { drawTopApps(ctx, rects[next], s); next += 1 }
+        if let claude { drawClaude(ctx, rects[next], claude, now: now); next += 1 }
+        if let agenda { drawAgenda(ctx, rects[next], agenda) }
         if photoPanel { drawPhoto(ctx, photoRect, photo) }
 
         // Software brightness: a black overlay. fw 5.3 accepts SetLight but never changes the backlight.
@@ -154,7 +164,8 @@ final class MiniDisplayRenderer {
     private func drawProcessors(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
         let (top, bottom) = splitCard(ctx, r)
         drawGauge(ctx, top, title: "CPU", badge: (temp(s.cpuTemp), heat(s.cpuTemp)),
-                  value: s.cpuTotal, number: pct(s.cpuTotal), color: cpuColor, notes: [])
+                  value: s.cpuTotal, number: pct(s.cpuTotal), color: cpuColor,
+                  notes: [(s.thermal.text, thermalColor(s.thermal))])
         drawGauge(ctx, bottom, title: "GPU", badge: (temp(s.gpuTemp), heat(s.gpuTemp)),
                   value: s.gpu ?? 0, number: s.gpu.map(pct) ?? "--", color: gpuColor,
                   notes: [("SoC " + temp(s.socTemp), heat(s.socTemp))])
@@ -182,11 +193,14 @@ final class MiniDisplayRenderer {
     /// Half-card: title + badge (temperature or %), big number with up to two
     /// small note lines on its right (each dropped if it doesn't fit), and a bar.
     private func drawGauge(_ ctx: CGContext, _ r: CGRect, title: String, badge: (String, CGColor),
-                           value: Double, number: String, color: CGColor, notes: [(String, CGColor)]) {
+                           value: Double?, number: String, color: CGColor, notes: [(String, CGColor)]) {
         let p: CGFloat = 28
         let baseline = r.minY + 140
         text(ctx, title, x: r.minX + p, y: r.minY + p + 22, size: 28, color: textDim, bold: true)
-        text(ctx, badge.0, x: r.maxX - p, y: r.minY + p + 22, size: 28, color: badge.1, bold: true, align: .right)
+        // Badge shrinks rather than run into the title on narrow cards.
+        let titleW = textWidth(title, size: 28, bold: true)
+        let badgeSize = fitSize(badge.0, 28, r.width - 2 * p - titleW - 14, bold: true)
+        text(ctx, badge.0, x: r.maxX - p, y: r.minY + p + 22, size: badgeSize, color: badge.1, bold: true, align: .right)
         let numberWidth = bigNumber(ctx, number, x: r.minX + p, y: baseline, size: 84)
         let room = r.width - 2 * p - numberWidth - 16
         for (k, note) in notes.prefix(2).enumerated() {
@@ -195,8 +209,10 @@ final class MiniDisplayRenderer {
             let y = baseline - CGFloat(notes.prefix(2).count - 1 - k) * 30
             text(ctx, note.0, x: r.maxX - p, y: y, size: 22, color: note.1, align: .right)
         }
-        bar(ctx, CGRect(x: r.minX + p, y: r.maxY - p - 18, width: r.width - 2 * p, height: 18),
-            value: value, color: color)
+        if let value {
+            bar(ctx, CGRect(x: r.minX + p, y: r.maxY - p - 18, width: r.width - 2 * p, height: 18),
+                value: value, color: color)
+        }
     }
 
     /// Clock on top, network below.
@@ -220,10 +236,84 @@ final class MiniDisplayRenderer {
         text(ctx, lunar, x: top.minX + p, y: top.minY + 178, size: small, color: lunarColor)
 
         text(ctx, "NETWORK", x: bottom.minX + p, y: bottom.minY + p + 22, size: 28, color: textDim, bold: true)
+        // Sound output in the free corner: speaker + volume (or Muted) + device name.
+        if let a = s.audio {
+            let level = a.muted ? "Muted" : a.volume.map { "\(Int(($0 * 100).rounded()))%" } ?? ""
+            let icon = a.muted || a.volume == 0 ? "\u{1F507}" : "\u{1F50A}"
+            let short = [icon, level].filter { !$0.isEmpty }.joined(separator: " ")
+            let full = short + " " + a.name
+            let room = bottom.width - 2 * p - textWidth("NETWORK", size: 28, bold: true) - 16
+            // Device name only if it fits whole; a cut-off name ("Ma…") says nothing.
+            let label = textWidth(full, size: 22, bold: false) <= room ? full : short
+            text(ctx, truncated(label, size: 22, width: room, bold: false), x: bottom.maxX - p,
+                 y: bottom.minY + p + 20, size: 22, color: a.muted ? Self.rgb(0xFF8A80) : textDim, align: .right)
+        }
         let down = "\u{2193} " + rate(s.netRx), up = "\u{2191} " + rate(s.netTx)
         let rateSize = min(fitSize(down, 40, avail, bold: true), fitSize(up, 40, avail, bold: true))
         text(ctx, down, x: bottom.minX + p, y: bottom.minY + 122, size: rateSize, color: netColor, bold: true)
         text(ctx, up, x: bottom.minX + p, y: bottom.maxY - p - 6, size: rateSize, color: netColor, bold: true)
+    }
+
+    /// Top 3 apps by CPU (share of the whole machine, same scale as the CPU card) on top,
+    /// top 3 by memory footprint below. Helper processes count toward their app.
+    private func drawTopApps(_ ctx: CGContext, _ r: CGRect, _ s: MiniDisplaySnapshot) {
+        let (top, bottom) = splitCard(ctx, r)
+        drawAppList(ctx, top, title: "TOP CPU", rows: s.topCPU.map { ($0.app, ProcessUsage.cpuText($0.value)) },
+                    color: cpuColor)
+        drawAppList(ctx, bottom, title: "TOP MEMORY",
+                    rows: s.topMemory.map { ($0.app, ProcessUsage.memoryText($0.value)) }, color: memColor)
+    }
+
+    private func drawAppList(_ ctx: CGContext, _ r: CGRect, title: String, rows: [(String, String)], color: CGColor) {
+        let p: CGFloat = 28
+        text(ctx, title, x: r.minX + p, y: r.minY + p + 22, size: 28, color: textDim, bold: true)
+        guard !rows.isEmpty else {
+            text(ctx, "Measuring\u{2026}", x: r.minX + p, y: r.minY + p + 22 + 46, size: 24, color: textDim)
+            return
+        }
+        let lineH: CGFloat = 38
+        for (i, row) in rows.prefix(3).enumerated() {
+            let y = r.minY + p + 22 + 46 + CGFloat(i) * lineH
+            let valueW = text(ctx, row.1, x: r.maxX - p, y: y, size: 24, color: color, bold: true, align: .right)
+            text(ctx, truncated(row.0, size: 24, width: r.width - 2 * p - valueW - 14, bold: false),
+                 x: r.minX + p, y: y, size: 24, color: textMain)
+        }
+    }
+
+    private func thermalColor(_ t: ThermalLevel) -> CGColor {
+        switch t {
+        case .nominal: return Self.rgb(0x69F0AE)
+        case .fair: return Self.rgb(0xFFD54F)
+        case .serious: return Self.rgb(0xFFAB40)
+        case .critical: return Self.rgb(0xFF5252)
+        }
+    }
+
+    /// Claude plan usage of the signed-in account: Session (5hr) on top,
+    /// Weekly (7 day) below — the same numbers as Claude Code's usage panel.
+    private func drawClaude(_ ctx: CGContext, _ r: CGRect, _ c: ClaudeLimitsMonitor.Snapshot, now: Date) {
+        let (top, bottom) = splitCard(ctx, r)
+        guard let account = c.current else {
+            drawGauge(ctx, top, title: "CLAUDE", badge: ("", textDim), value: nil, number: "--",
+                      color: claudeColor, notes: [(c.note ?? "Loading\u{2026}", textDim)])
+            return
+        }
+        func color(_ w: ClaudeLimits.Window) -> CGColor {
+            w.percent >= 90 ? Self.rgb(0xFF5252) : (w.percent >= 70 ? Self.rgb(0xFFAB40) : claudeColor)
+        }
+        // Which account (you rotate several): the part of the email before "@".
+        let who = account.email.map { String($0.split(separator: "@").first ?? "") } ?? ""
+        let stale = c.note != nil ? " \u{26A0}\u{FE0E}" : ""
+        if let s = account.usage.session {
+            drawGauge(ctx, top, title: "SESSION", badge: (who + stale, textDim), value: s.percent / 100,
+                      number: ClaudeLimits.percentText(s), color: color(s),
+                      notes: [(ClaudeLimits.resetText(s.resetsAt, now: now, compact: true), textDim)])
+        }
+        if let w = account.usage.weekly {
+            drawGauge(ctx, bottom, title: "WEEKLY", badge: (account.plan ?? "", textDim), value: w.percent / 100,
+                      number: ClaudeLimits.percentText(w), color: color(w),
+                      notes: [(ClaudeLimits.resetText(w.resetsAt, now: now, compact: true), textDim)])
+        }
     }
 
     /// Agenda card: events on top and reminders below when both are on,
@@ -256,7 +346,9 @@ final class MiniDisplayRenderer {
             text(ctx, note, x: r.minX + p, y: firstY, size: 24, color: textDim)
             return
         }
-        let labelW: CGFloat = 112
+        // Label column as wide as the widest label shown (e.g. "Tmrw 19:30").
+        let labelW = min(150, max(80, section.items.prefix(capacity)
+            .map { textWidth($0.label, size: 22, bold: false) }.max() ?? 0) + 14)
         for (i, item) in section.items.prefix(capacity).enumerated() {
             let y = firstY + CGFloat(i) * lineH
             // Calendar / list colour dot, time label, then the title cut to fit.

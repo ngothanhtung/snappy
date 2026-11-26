@@ -85,6 +85,12 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Toggle("Top apps (CPU / memory)", isOn: Binding(
+                    get: { miniDisplay.showsTopApps },
+                    set: { miniDisplay.setShowsTopApps($0) }
+                ))
+                .toggleStyle(.switch)
+                .disabled(!miniDisplay.isEnabled)
                 Toggle("Calendar events", isOn: Binding(
                     get: { miniDisplay.showsCalendar },
                     set: { miniDisplay.setShowsCalendar($0) }
@@ -97,15 +103,21 @@ struct SettingsView: View {
                 ))
                 .toggleStyle(.switch)
                 .disabled(!miniDisplay.isEnabled)
+                Toggle("Claude usage card", isOn: Binding(
+                    get: { miniDisplay.showsClaude },
+                    set: { miniDisplay.setShowsClaude($0) }
+                ))
+                .toggleStyle(.switch)
+                .disabled(!miniDisplay.isEnabled)
                 LabeledContent("Status", value: miniDisplay.photosProblem.map {
                     "\(miniDisplay.statusText) \u{00B7} \($0)"
                 } ?? miniDisplay.statusText)
             } header: {
                 Text("Mini Display")
             } footer: {
-                Text("Streams CPU, GPU, RAM, storage, network and a clock to a Jungle Leopard "
+                Text("Streams CPU (with the thermal state), GPU, RAM, storage, network (with the sound output and volume) and a clock to a Jungle Leopard "
                      + "USB screen (e.g. 9.16\"). The photos panel shows a random photo from your "
-                     + "Photos library from the chosen album in a panel on the right (frame shape selectable), crossfading between them. Calendar events and Reminders add an agenda card with what's coming up today and tomorrow and your open reminders. Brightness is applied in software because the "
+                     + "Photos library from the chosen album in a panel on the right (frame shape selectable), crossfading between them. Calendar events and Reminders add an agenda card with what's coming up today and tomorrow and your open reminders. The Claude card shows the Session (5hr) and Weekly (7 day) usage of the account Claude Code is signed in to, read with Claude Code's own login (macOS asks once for Keychain access). Brightness is applied in software because the "
                      + "panel's firmware ignores backlight commands.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

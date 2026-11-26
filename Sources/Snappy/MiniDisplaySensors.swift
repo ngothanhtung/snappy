@@ -1,3 +1,4 @@
+import SnappyCore
 import Darwin
 import Foundation
 import IOKit
@@ -18,12 +19,20 @@ struct MiniDisplaySnapshot {
     var diskRead: Double = 0          // bytes/s, all block devices
     var diskWrite: Double = 0
     var diskTemp: Double? = nil       // NAND
+    var thermal: ThermalLevel = .nominal
+    var audio: MiniDisplayAudio.Output? = nil
+    var topCPU: [ProcessUsage.Entry] = []      // only filled while the TOP APPS card is on
+    var topMemory: [ProcessUsage.Entry] = []
 }
 
 final class MiniDisplaySensors {
     private var prevTicks: [(busy: UInt32, total: UInt32)] = []
     private var prevNet: (rx: UInt64, tx: UInt64, t: Date)? = nil
     private let thermal = MiniDisplayThermal()
+    private let processes = MiniDisplayProcesses()
+    private var lastProcesses: (cpu: [ProcessUsage.Entry], memory: [ProcessUsage.Entry], t: Date)?
+    /// Scan processes only while the TOP APPS card is shown (every 2 s).
+    var wantsTopApps = false
 
     func logThermalSensors() {
         let all = thermal.readAll()
@@ -49,6 +58,19 @@ final class MiniDisplaySensors {
         s.diskTemp = Self.avg(temps, where: { $0.hasPrefix("NAND") })
         (s.diskTotal, s.diskFree) = diskCapacity()
         (s.diskRead, s.diskWrite) = diskIO()
+        s.thermal = ThermalLevel(rawValue: ProcessInfo.processInfo.thermalState.rawValue) ?? .nominal
+        s.audio = MiniDisplayAudio.current()
+        if wantsTopApps {
+            if lastProcesses == nil || Date().timeIntervalSince(lastProcesses!.t) >= 2 {
+                let top = processes.sample(limit: 3)
+                // The first scan has no CPU interval yet; keep the old CPU list until the next.
+                lastProcesses = (top.cpu.isEmpty ? (lastProcesses?.cpu ?? []) : top.cpu, top.memory, Date())
+            }
+            s.topCPU = lastProcesses?.cpu ?? []
+            s.topMemory = lastProcesses?.memory ?? []
+        } else {
+            lastProcesses = nil
+        }
         return s
     }
 

@@ -47,6 +47,22 @@ final class MiniDisplayEngine: @unchecked Sendable {
 
     private var currentAgendaSource: (() -> MiniDisplayAgenda?)? { locked { agendaSource } }
 
+    private var topApps = false
+
+    /// Shows the TOP APPS card (top CPU / memory apps); process scanning runs only while on.
+    func setShowsTopApps(_ on: Bool) { locked { topApps = on } }
+
+    private var showsTopApps: Bool { locked { topApps } }
+
+    private var claudeSource: (() -> ClaudeLimitsMonitor.Snapshot?)?
+
+    /// Supplies the Claude plan usage card, or nil to hide it.
+    func setClaudeSource(_ source: (() -> ClaudeLimitsMonitor.Snapshot?)?) {
+        locked { claudeSource = source }
+    }
+
+    private var currentClaudeSource: (() -> ClaudeLimitsMonitor.Snapshot?)? { locked { claudeSource } }
+
     private func locked<T>(_ f: () -> T) -> T {
         lock.lock()
         defer { lock.unlock() }
@@ -159,12 +175,16 @@ final class MiniDisplayEngine: @unchecked Sendable {
                         try device.keepAlive()
                     }
                     renderer.brightness = Double(currentBrightness) / 100
+                    let wantsTop = showsTopApps
+                    sensors.wantsTopApps = wantsTop
                     if t0.timeIntervalSince(lastSample) >= 1 {
                         snap = sensors.sample()
                         lastSample = t0
                     }
                     guard let img = renderer.render(snap, now: t0, photoPanel: photo != nil, photo: photo,
-                                                    agenda: currentAgendaSource?() ?? nil),
+                                                    agenda: currentAgendaSource?() ?? nil,
+                                                    claude: currentClaudeSource?() ?? nil,
+                                                    topApps: wantsTop),
                           let jpeg = MiniDisplayJPEG.encode(img, maxBytes: info.maxJpegBytes, quality: &jpegQuality) else {
                         MiniDisplayLog.log("render/encode failed")
                         nap(1)

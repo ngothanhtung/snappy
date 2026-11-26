@@ -246,6 +246,30 @@ toggle that starts/stops streaming and frees the serial port) and a Settings sec
   `SnappyCore/AgendaFormatting.swift`. Needs the `NSCalendars*`/`NSReminders*`
   usage strings and the `com.apple.security.personal-information.calendars`
   entitlement (covers reminders too).
+- Claude plan usage (status menu "Claude Code" section always; mini display card
+  via the "Claude Usage" switch, `miniDisplayClaudeEnabled`): `ClaudeLimitsMonitor`
+  shows Session (5hr) / Weekly (7 day) % + reset times, like Claude Code's
+  "Account & Usage" panel. It reads Claude Code's Claude.ai login from the Keychain
+  (service `Claude Code-credentials`; several items share that name — one may only
+  hold `mcpOAuth` — so it lists attributes first and opens the one under the macOS
+  user name / most recently modified) and calls the **undocumented** endpoint
+  `GET https://api.anthropic.com/api/oauth/usage` (`anthropic-beta: oauth-2025-04-20`)
+  every 5 min. It never refreshes the token (that would rotate Claude Code's refresh
+  token); expired → shows a note and waits for Claude Code. Account email/org come
+  from `~/.claude.json` `oauthAccount`; last values per account are kept in
+  `claudeLimitsByAccount` so rotated-out accounts still show their last-known usage.
+  Parsing/wording is pure in `SnappyCore/ClaudeLimits.swift`.
+- TOP APPS card ("Top Apps" switch, `miniDisplayTopAppsEnabled`): `MiniDisplayProcesses`
+  (libproc `proc_pid_rusage`, every 2 s, only while the card is on) → top 3 by CPU
+  (% of the whole machine, same scale as the CPU card — not Activity Monitor's per-core %) and by memory footprint; only apps count: NSWorkspace Dock apps +
+  non-Apple menu-bar apps, each process assigned to the **outermost** running app
+  bundle containing it (helpers like "Microsoft Edge Helper" register as apps too);
+  daemons/kernel/CLI tools are dropped (`SnappyCore/ProcessUsage.swift`). rusage CPU times are **Mach ticks** on
+  Apple Silicon — convert with `mach_timebase_info`. Names are the bundle folder names
+  ("Visual Studio Code", not the process name "Code").
+- CPU half shows `ProcessInfo.thermalState` (Nominal/Fair/Serious/Critical); the
+  NETWORK header shows the default sound output + volume/mute (`MiniDisplayAudio`,
+  CoreAudio).
 - The clock card also shows the Vietnamese lunar date (`SnappyCore/LunarCalendar.swift`,
   Hồ Ngọc Đức's algorithm at UTC+7 — not Foundation's `.chinese` calendar, which is
   UTC+8 and puts Tết on a different day in e.g. 1985 and 2007).
