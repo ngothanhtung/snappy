@@ -47,12 +47,20 @@ final class MiniDisplayEngine: @unchecked Sendable {
 
     private var currentAgendaSource: (() -> MiniDisplayAgenda?)? { locked { agendaSource } }
 
-    private var topApps = false
+    private var layout: MiniDisplayLayout = .standard
 
-    /// Shows the TOP APPS card (top CPU / memory apps); process scanning runs only while on.
-    func setShowsTopApps(_ on: Bool) { locked { topApps = on } }
+    /// Which widget goes in which slot. Process scanning runs only while a
+    /// Top CPU / Top Memory widget is placed.
+    func setLayout(_ l: MiniDisplayLayout) { locked { layout = l } }
 
-    private var showsTopApps: Bool { locked { topApps } }
+    private var currentLayout: MiniDisplayLayout { locked { layout } }
+
+    private var theme: MiniDisplayTheme = .midnight
+
+    /// Colour theme of the whole dashboard; applied from the next frame.
+    func setTheme(_ t: MiniDisplayTheme) { locked { theme = t } }
+
+    private var currentTheme: MiniDisplayTheme { locked { theme } }
 
     private var claudeSource: (() -> ClaudeLimitsMonitor.Snapshot?)?
 
@@ -175,16 +183,16 @@ final class MiniDisplayEngine: @unchecked Sendable {
                         try device.keepAlive()
                     }
                     renderer.brightness = Double(currentBrightness) / 100
-                    let wantsTop = showsTopApps
-                    sensors.wantsTopApps = wantsTop
+                    renderer.theme = currentTheme
+                    let layout = currentLayout
+                    sensors.wantsTopApps = layout.contains(.topCPU) || layout.contains(.topMemory)
                     if t0.timeIntervalSince(lastSample) >= 1 {
                         snap = sensors.sample()
                         lastSample = t0
                     }
-                    guard let img = renderer.render(snap, now: t0, photoPanel: photo != nil, photo: photo,
+                    guard let img = renderer.render(snap, layout: layout, now: t0, photo: photo,
                                                     agenda: currentAgendaSource?() ?? nil,
-                                                    claude: currentClaudeSource?() ?? nil,
-                                                    topApps: wantsTop),
+                                                    claude: currentClaudeSource?() ?? nil),
                           let jpeg = MiniDisplayJPEG.encode(img, maxBytes: info.maxJpegBytes, quality: &jpegQuality) else {
                         MiniDisplayLog.log("render/encode failed")
                         nap(1)

@@ -18,6 +18,13 @@ mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Snappy"
 
+# SwiftPM resource bundles (KeyboardShortcuts' localized strings). The new
+# Swift build system's Bundle.module only looks in Contents/Resources — without
+# them the app crashes as soon as a shortcut recorder (Settings) is shown.
+for B in "$(dirname "$BIN")"/*.bundle; do
+    [ -d "$B" ] && cp -R "$B" "$APP/Contents/Resources/"
+done
+
 # Copy any custom resources (e.g. MenuBarIcon.png) into the app.
 if [ -d "$ROOT/Resources" ]; then
     echo "==> Copying Resources/"

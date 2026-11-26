@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import SnappyCore
 
 /// Owns the mini-display engine (Jungle Leopard USB panel dashboard), its
 /// persisted settings, and the menu items shown in the status menu.
@@ -7,8 +8,10 @@ import SwiftUI
 /// and `miniDisplayPhotosEnabled` (default off: a Photos slideshow in a 4:3 panel on the right),
 /// with `miniDisplayPhotosAlbum` (PhotoKit album id, "" = All Photos) and
 /// `miniDisplayPhotosInterval` (seconds between photos) and `miniDisplayPhotosAspect`
-/// (card shape, e.g. "4:3"). `miniDisplayCalendarEnabled` / `miniDisplayRemindersEnabled`
-/// (default off) add an agenda card with upcoming events / open reminders.
+/// (card shape, e.g. "4:3"). `miniDisplayTheme` (theme id, default "midnight"). `miniDisplayLayout` (JSON `MiniDisplayLayout`) says which
+/// widget sits in which slot; data sources (Photos, EventKit, Claude, process scan)
+/// run only for the widgets placed. The older per-card switches
+/// (`miniDisplayPhotosEnabled`, `…CalendarEnabled`, …) are only read once to migrate.
 @MainActor
 final class MiniDisplayController: ObservableObject {
     static let shared = MiniDisplayController()
@@ -23,6 +26,8 @@ final class MiniDisplayController: ObservableObject {
     static let remindersKey = "miniDisplayRemindersEnabled"
     static let claudeKey = "miniDisplayClaudeEnabled"
     static let topAppsKey = "miniDisplayTopAppsEnabled"
+    static let layoutKey = "miniDisplayLayout"
+    static let themeKey = "miniDisplayTheme"
 
     /// Choices for the seconds between photos.
     static let photoIntervals: [Int] = [5, 10, 15, 30, 60, 120, 300]
@@ -35,56 +40,45 @@ final class MiniDisplayController: ObservableObject {
     @Published private(set) var brightness: Int
     @Published private(set) var state: MiniDisplayEngine.State = .stopped
 
-    @Published private(set) var showsPhotos: Bool
+    @Published private(set) var layout: MiniDisplayLayout
+    @Published private(set) var theme: MiniDisplayTheme
     @Published private(set) var photoAlbumID: String
     @Published private(set) var photoInterval: Int
     @Published private(set) var photoAspect: MiniDisplayPhotoAspect
-    @Published private(set) var showsCalendar: Bool
-    @Published private(set) var showsReminders: Bool
-    @Published private(set) var showsClaude: Bool
-    @Published private(set) var showsTopApps: Bool
+
+    var showsPhotos: Bool { layout.contains(.photo) }
+    var showsCalendar: Bool { layout.contains(.calendar) }
+    var showsReminders: Bool { layout.contains(.reminders) }
+    var showsClaude: Bool { layout.contains(.claude) }
 
     private let engine: MiniDisplayEngine
     private let photos = MiniDisplayPhotoSource()
     private let agenda = MiniDisplayAgendaSource()
-    private let calendarItem = NSMenuItem()
-    private let calendarSwitch = NSSwitch()
-    private let remindersItem = NSMenuItem()
-    private let remindersSwitch = NSSwitch()
-    private let claudeItem = NSMenuItem()
-    private let claudeSwitch = NSSwitch()
-    private let topAppsItem = NSMenuItem()
-    private let topAppsSwitch = NSSwitch()
     private var claudeRetained = false
-    private let photosItem = NSMenuItem()
-    private let photosSwitch = NSSwitch()
-    private let albumItem = NSMenuItem(title: "Album", action: nil, keyEquivalent: "")
-    private let intervalItem = NSMenuItem(title: "Change Every", action: nil, keyEquivalent: "")
-    private let aspectItem = NSMenuItem(title: "Frame", action: nil, keyEquivalent: "")
-    private let albumMenuDelegate = MenuOpenHandler()
     private let statusLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let syncItem = NSMenuItem()
     private let syncSwitch = NSSwitch()
-    private let brightnessLabel = NSTextField(labelWithString: "")
-    private let brightnessSlider = NSSlider(value: 80, minValue: 0, maxValue: 100, target: nil, action: nil)
 
     private init() {
         let defaults = UserDefaults.standard
         let savedBrightness = defaults.object(forKey: Self.brightnessKey) as? Int ?? 80
         isEnabled = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
-        showsPhotos = defaults.bool(forKey: Self.photosKey)
+        layout = MiniDisplayLayout.decode(defaults.data(forKey: Self.layoutKey))
+            ?? .migrated(photos: defaults.bool(forKey: Self.photosKey),
+                         topApps: defaults.bool(forKey: Self.topAppsKey),
+                         calendar: defaults.bool(forKey: Self.calendarKey),
+                         reminders: defaults.bool(forKey: Self.remindersKey),
+                         claude: defaults.bool(forKey: Self.claudeKey))
         photoAlbumID = defaults.string(forKey: Self.photosAlbumKey) ?? MiniDisplayPhotoAlbum.allPhotosID
         let savedInterval = defaults.integer(forKey: Self.photosIntervalKey)
         photoInterval = Self.photoIntervals.contains(savedInterval) ? savedInterval : 15
         photoAspect = defaults.string(forKey: Self.photosAspectKey).flatMap(MiniDisplayPhotoAspect.init)
             ?? .standard
-        showsCalendar = defaults.bool(forKey: Self.calendarKey)
-        showsReminders = defaults.bool(forKey: Self.remindersKey)
-        showsClaude = defaults.bool(forKey: Self.claudeKey)
-        showsTopApps = defaults.bool(forKey: Self.topAppsKey)
+        theme = MiniDisplayTheme.named(defaults.string(forKey: Self.themeKey))
         brightness = savedBrightness
         engine = MiniDisplayEngine(brightness: savedBrightness)
-        engine.setShowsTopApps(showsTopApps)
+        engine.setLayout(layout)
+        engine.setTheme(theme)
         engine.onState = { [weak self] s in
             MainActor.assumeIsolated { self?.apply(state: s) }
         }
@@ -99,30 +93,63 @@ final class MiniDisplayController: ObservableObject {
     func startIfEnabled() {
         if isEnabled {
             engine.start()
-            if showsPhotos { startPhotos() }
-            startAgenda()
-            if showsClaude { startClaude() }
+            startSources()
         }
         refreshMenuItems()
     }
 
     func shutdown() {
-        stopClaude()
-        stopAgenda()
-        stopPhotos()
+        stopSources()
         engine.stop()
     }
 
-    // MARK: Photos panel
+    // MARK: Layout
 
-    /// Shows a slideshow from the Photos library in a 4:3 card on the right of the panel.
-    func setShowsPhotos(_ on: Bool) {
-        guard on != showsPhotos else { return }
-        showsPhotos = on
-        UserDefaults.standard.set(on, forKey: Self.photosKey)
-        if on && isEnabled { startPhotos() } else { stopPhotos() }
+    /// Puts widgets in slots and starts/stops the data sources that are now (not) needed.
+    func setLayout(_ l: MiniDisplayLayout) {
+        guard l != layout else { return }
+        layout = l
+        if let data = l.encoded() { UserDefaults.standard.set(data, forKey: Self.layoutKey) }
+        engine.setLayout(l)
+        if isEnabled { startSources() }
         refreshMenuItems()
     }
+
+    /// Colour theme of the whole mini display.
+    func setTheme(_ t: MiniDisplayTheme) {
+        guard t != theme else { return }
+        theme = t
+        UserDefaults.standard.set(t.id, forKey: Self.themeKey)
+        engine.setTheme(t)
+    }
+
+    /// Changes one slot (`top` = upper row) of column `column`.
+    func setWidget(_ w: MiniDisplayWidget?, column: Int, top: Bool) {
+        var l = layout
+        l.set(w, column: column, top: top)
+        setLayout(l)
+    }
+
+    func setColumnCount(_ n: Int) {
+        var l = layout
+        l.setColumnCount(n)
+        setLayout(l)
+    }
+
+    /// Runs exactly the sources the placed widgets need.
+    private func startSources() {
+        if showsPhotos { startPhotos() } else { stopPhotos() }
+        startAgenda()
+        if showsClaude { startClaude() } else { stopClaude() }
+    }
+
+    private func stopSources() {
+        stopClaude()
+        stopAgenda()
+        stopPhotos()
+    }
+
+    // MARK: Photos widget
 
     func setPhotoAlbum(_ id: String) {
         guard id != photoAlbumID else { return }
@@ -150,23 +177,7 @@ final class MiniDisplayController: ObservableObject {
 
     // MARK: Agenda (Calendar + Reminders)
 
-    func setShowsCalendar(_ on: Bool) {
-        guard on != showsCalendar else { return }
-        showsCalendar = on
-        UserDefaults.standard.set(on, forKey: Self.calendarKey)
-        if isEnabled { startAgenda() }
-        refreshMenuItems()
-    }
-
-    func setShowsReminders(_ on: Bool) {
-        guard on != showsReminders else { return }
-        showsReminders = on
-        UserDefaults.standard.set(on, forKey: Self.remindersKey)
-        if isEnabled { startAgenda() }
-        refreshMenuItems()
-    }
-
-    /// Applies the Calendar/Reminders switches: shows the agenda card if either is on.
+    /// Loads events / reminders if a Calendar / Reminders widget is placed.
     private func startAgenda() {
         agenda.showsEvents = showsCalendar
         agenda.showsReminders = showsReminders
@@ -184,25 +195,7 @@ final class MiniDisplayController: ObservableObject {
         agenda.showsReminders = false
     }
 
-    // MARK: Top apps card
-
-    func setShowsTopApps(_ on: Bool) {
-        guard on != showsTopApps else { return }
-        showsTopApps = on
-        UserDefaults.standard.set(on, forKey: Self.topAppsKey)
-        engine.setShowsTopApps(on)
-        refreshMenuItems()
-    }
-
-    // MARK: Claude plan usage card
-
-    func setShowsClaude(_ on: Bool) {
-        guard on != showsClaude else { return }
-        showsClaude = on
-        UserDefaults.standard.set(on, forKey: Self.claudeKey)
-        if on && isEnabled { startClaude() } else { stopClaude() }
-        refreshMenuItems()
-    }
+    // MARK: Claude plan usage
 
     private func startClaude() {
         let monitor = ClaudeLimitsMonitor.shared
@@ -246,13 +239,9 @@ final class MiniDisplayController: ObservableObject {
         UserDefaults.standard.set(on, forKey: Self.enabledKey)
         if on {
             engine.start()
-            if showsPhotos { startPhotos() }
-            startAgenda()
-            if showsClaude { startClaude() }
+            startSources()
         } else {
-            stopClaude()
-            stopAgenda()
-            stopPhotos()
+            stopSources()
             engine.stop()
         }
         refreshMenuItems()
@@ -284,108 +273,22 @@ final class MiniDisplayController: ObservableObject {
 
     // MARK: Status menu
 
-    /// Items for the "Mini Display" section of the status menu.
+    /// Items for the "Mini Display" section of the status menu: connection status and Sync.
     func makeMenuItems() -> [NSMenuItem] {
         statusLine.isEnabled = false
         statusLine.image = NSImage(systemSymbolName: "rectangle.inset.filled",
                                    accessibilityDescription: "Mini display status")
 
-        let sliderItem = NSMenuItem()
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 50))
-        brightnessLabel.frame = NSRect(x: 20, y: 29, width: 210, height: 16)
-        brightnessLabel.font = .menuFont(ofSize: 12)
-        brightnessLabel.textColor = .secondaryLabelColor
-        brightnessSlider.frame = NSRect(x: 18, y: 4, width: 250 - 18 - 14, height: 24)
-        brightnessSlider.isContinuous = true
-        brightnessSlider.target = self
-        brightnessSlider.action = #selector(sliderChanged(_:))
-        // Menus resize width-flexible item views to the menu's width, so the
-        // slider stretches to the right edge instead of stopping at 250pt.
-        view.autoresizingMask = [.width]
-        brightnessLabel.autoresizingMask = [.width]
-        brightnessSlider.autoresizingMask = [.width]
-        view.addSubview(brightnessLabel)
-        view.addSubview(brightnessSlider)
-        sliderItem.view = view
-
         syncItem.view = makeSwitchRow("Sync", symbol: "arrow.triangle.2.circlepath",
                                       syncSwitch, action: #selector(syncSwitched(_:)))
-        photosItem.view = makeSwitchRow("Photos", symbol: "photo.on.rectangle",
-                                        photosSwitch, action: #selector(photosSwitched(_:)))
-        calendarItem.view = makeSwitchRow("Calendar", symbol: "calendar",
-                                          calendarSwitch, action: #selector(calendarSwitched(_:)))
-        remindersItem.view = makeSwitchRow("Reminders", symbol: "checklist",
-                                           remindersSwitch, action: #selector(remindersSwitched(_:)))
-        claudeItem.view = makeSwitchRow("Claude Usage", symbol: "sparkles",
-                                        claudeSwitch, action: #selector(claudeSwitched(_:)))
-        topAppsItem.view = makeSwitchRow("Top Apps", symbol: "list.number",
-                                         topAppsSwitch, action: #selector(topAppsSwitched(_:)))
-
-        // Album list is built each time the submenu opens (albums change).
-        let albumMenu = NSMenu()
-        albumMenuDelegate.onOpen = { [weak self] menu in
-            MainActor.assumeIsolated { self?.fillAlbumMenu(menu) }
-        }
-        albumMenu.delegate = albumMenuDelegate
-        albumItem.submenu = albumMenu
-        albumItem.image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "Album")
-
-        let intervalMenu = NSMenu()
-        for sec in Self.photoIntervals {
-            let item = NSMenuItem(title: Self.intervalLabel(sec), action: #selector(pickInterval(_:)), keyEquivalent: "")
-            item.target = self
-            item.tag = sec
-            intervalMenu.addItem(item)
-        }
-        intervalItem.submenu = intervalMenu
-        intervalItem.image = NSImage(systemSymbolName: "timer", accessibilityDescription: "Change every")
-
-        let aspectMenu = NSMenu()
-        for a in MiniDisplayPhotoAspect.all {
-            let item = NSMenuItem(title: a.id, action: #selector(pickAspect(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = a.id
-            aspectMenu.addItem(item)
-        }
-        aspectItem.submenu = aspectMenu
-        aspectItem.image = NSImage(systemSymbolName: "aspectratio", accessibilityDescription: "Frame")
-
         refreshMenuItems()
-        return [statusLine, syncItem, sliderItem, photosItem, albumItem, intervalItem, aspectItem,
-                topAppsItem, calendarItem, remindersItem, claudeItem]
+        // Brightness, theme and widgets live in Settings ▸ Mini Display.
+        return [statusLine, syncItem]
     }
 
     private func refreshMenuItems() {
         syncSwitch.state = isEnabled ? .on : .off
-        brightnessLabel.stringValue = "Brightness: \(brightness)%"
-        brightnessSlider.integerValue = brightness
-        brightnessSlider.isEnabled = isEnabled
-        photosSwitch.state = showsPhotos ? .on : .off
-        photosSwitch.isEnabled = isEnabled
-        photosSwitch.toolTip = photosProblem
-        calendarSwitch.state = showsCalendar ? .on : .off
-        calendarSwitch.isEnabled = isEnabled
-        remindersSwitch.state = showsReminders ? .on : .off
-        remindersSwitch.isEnabled = isEnabled
-        claudeSwitch.state = showsClaude ? .on : .off
-        claudeSwitch.isEnabled = isEnabled
-        topAppsSwitch.state = showsTopApps ? .on : .off
-        topAppsSwitch.isEnabled = isEnabled
-        albumItem.isHidden = !showsPhotos
-        intervalItem.isHidden = !showsPhotos
-        albumItem.title = "Album: " + currentAlbumTitle
-        intervalItem.title = "Change Every: " + Self.intervalLabel(photoInterval)
-        intervalItem.submenu?.items.forEach { $0.state = $0.tag == photoInterval ? .on : .off }
-        aspectItem.isHidden = !showsPhotos
-        aspectItem.title = "Frame: " + photoAspect.id
-        aspectItem.submenu?.items.forEach {
-            $0.state = ($0.representedObject as? String) == photoAspect.id ? .on : .off
-        }
         statusLine.title = photosProblem.map { "\(statusText) \u{00B7} \($0)" } ?? statusText
-    }
-
-    @objc private func sliderChanged(_ sender: NSSlider) {
-        setBrightness(Int(sender.doubleValue.rounded()))
     }
 
     /// Icon + label with an ON/OFF switch pinned to the right edge.
@@ -416,76 +319,4 @@ final class MiniDisplayController: ObservableObject {
     @objc private func syncSwitched(_ sender: NSSwitch) {
         setEnabled(sender.state == .on)
     }
-
-    @objc private func photosSwitched(_ sender: NSSwitch) {
-        setShowsPhotos(sender.state == .on)
-    }
-
-    @objc private func calendarSwitched(_ sender: NSSwitch) {
-        setShowsCalendar(sender.state == .on)
-    }
-
-    @objc private func remindersSwitched(_ sender: NSSwitch) {
-        setShowsReminders(sender.state == .on)
-    }
-
-    @objc private func topAppsSwitched(_ sender: NSSwitch) {
-        setShowsTopApps(sender.state == .on)
-    }
-
-    @objc private func claudeSwitched(_ sender: NSSwitch) {
-        setShowsClaude(sender.state == .on)
-    }
-
-    /// Title of the chosen album, cached so the menu doesn't hit PhotoKit on every refresh.
-    private var albumTitleCache: (id: String, title: String)?
-    private var currentAlbumTitle: String {
-        if photoAlbumID.isEmpty { return "All Photos" }
-        if let c = albumTitleCache, c.id == photoAlbumID { return c.title }
-        let title = photoAlbums().first { $0.id == photoAlbumID }?.title ?? "All Photos"
-        albumTitleCache = (photoAlbumID, title)
-        return title
-    }
-
-    private func fillAlbumMenu(_ menu: NSMenu) {
-        menu.removeAllItems()
-        let albums = photoAlbums()
-        if albums.isEmpty {
-            let none = NSMenuItem(title: "Allow Photos access first", action: nil, keyEquivalent: "")
-            none.isEnabled = false
-            menu.addItem(none)
-            return
-        }
-        for (i, album) in albums.enumerated() {
-            // Separator after All Photos.
-            if i == 1 { menu.addItem(.separator()) }
-            let item = NSMenuItem(title: "\(album.title)  (\(album.count))",
-                                  action: #selector(pickAlbum(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = [album.id, album.title]
-            item.state = album.id == photoAlbumID ? .on : .off
-            menu.addItem(item)
-        }
-    }
-
-    @objc private func pickAlbum(_ sender: NSMenuItem) {
-        guard let pair = sender.representedObject as? [String], pair.count == 2 else { return }
-        albumTitleCache = (pair[0], pair[1])
-        setPhotoAlbum(pair[0])
-    }
-
-    @objc private func pickAspect(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String, let a = MiniDisplayPhotoAspect(id) else { return }
-        setPhotoAspect(a)
-    }
-
-    @objc private func pickInterval(_ sender: NSMenuItem) {
-        setPhotoInterval(sender.tag)
-    }
-}
-
-/// NSMenuDelegate that calls back right before a menu opens.
-private final class MenuOpenHandler: NSObject, NSMenuDelegate {
-    var onOpen: ((NSMenu) -> Void)?
-    func menuNeedsUpdate(_ menu: NSMenu) { onOpen?(menu) }
 }

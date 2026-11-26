@@ -10,8 +10,8 @@ import SnappyCore
 /// refresh token and could sign Claude Code out) and calls the same internal
 /// endpoint Claude Code uses, `GET https://api.anthropic.com/api/oauth/usage`.
 /// That endpoint is undocumented and may change. Polls every 5 minutes while
-/// someone (menu, mini display) is interested, and remembers the last values
-/// per account so rotating accounts still shows the others' last-known usage.
+/// someone (the mini display's Claude widget) is interested, and remembers the last values
+/// per account so a failed fetch still shows that account's last-known usage.
 @MainActor
 final class ClaudeLimitsMonitor: ObservableObject {
     static let shared = ClaudeLimitsMonitor()
@@ -33,17 +33,15 @@ final class ClaudeLimitsMonitor: ObservableObject {
     }
 
     @Published private(set) var current: AccountLimits?
-    @Published private(set) var others: [AccountLimits] = []
     /// Why the latest fetch didn't work (nil when fine).
     @Published private(set) var note: String?
     @Published private(set) var isFetching = false
 
     let box = Box()
-    var onChange: (() -> Void)?
 
     private static let storeKey = "claudeLimitsByAccount"
-    private static let keychainService = "Claude Code-credentials"
-    private static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
+    nonisolated private static let keychainService = "Claude Code-credentials"
+    nonisolated private static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     private let interval: TimeInterval = 300
     private var timer: Timer?
     /// Cheap 30 s check of `~/.claude.json` so switching accounts shows up at once.
@@ -140,9 +138,7 @@ final class ClaudeLimitsMonitor: ObservableObject {
             MiniDisplayLog.log("claude limits: \(message)")
         }
         current = currentID.flatMap { known[$0] }
-        others = known.values.filter { $0.accountID != currentID }.sorted { $0.fetchedAt > $1.fetchedAt }
         box.set(Snapshot(current: current, note: note))
-        onChange?()
     }
 
     /// Runs off the main actor: Keychain (may show a permission prompt) + network.

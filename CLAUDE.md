@@ -205,8 +205,13 @@ can prompt for an admin password. Removal is blocked while the app runs.
 Streams a system dashboard (CPU per-core load + temp, GPU load + temp, RAM,
 storage free + read/write, network, clock) to a Jungle Leopard USB mini display
 (tested: 9.16" 1920x462, model `AW_F101-NOR-FL7707N-9.16inch-hor`, fw 5.3).
-Status-menu section "Mini Display" (status line, brightness slider, "Sync"
-toggle that starts/stops streaming and frees the serial port) and a Settings section, both driven by
+Status-menu section "Mini Display" (only the connection line — model + firmware —
+and the "Sync" toggle that starts/stops streaming and frees the serial port) and
+the Settings tab "Mini Display" (Sync/brightness/theme, the widget layout and photo
+options; brightness, theme and widgets are Settings-only; Settings is a toolbar-style
+`NSTabViewController` built in `StatusMenuController.showSettings(_:)`, one
+`SettingsView(tab:)` per `SettingsTab`: General / Shortcuts / Mini Display / Cloud),
+both driven by
 `MiniDisplayController` (`@AppStorage`-style keys `miniDisplayEnabled`,
 `miniDisplayBrightness`). Started from `AppDelegate`, closed on terminate.
 
@@ -226,13 +231,30 @@ toggle that starts/stops streaming and frees the serial port) and a Settings sec
 - Temperatures use private `IOHIDEventSystemClient` via `dlsym`
   (`MiniDisplayThermal`); M1-family only exposes PMU sensors (`tdie*` → CPU,
   `TPxg` → GPU, `NAND` → SSD).
-- Photos panel (`miniDisplayPhotosEnabled`, "Photos" switch in the menu/Settings):
+- Layout: n columns × 2 rows of slots, one widget per slot (`SnappyCore/MiniDisplayLayout.swift`,
+  `MiniDisplayWidget`: cpu, gpu, ram, storage, clock, network, topCPU, topMemory, claude,
+  calendar, reminders, photo), stored as JSON in `miniDisplayLayout` and edited in
+  Settings ▸ Mini Display (`SlotGridEditor`: click a slot → popover list of widgets;
+  column stepper). `set(_:column:top:)` keeps the photo alone in its column.
+  `placements(...)` is pure/tested: empty columns skipped, the shown columns
+  share the width equally, a lone widget fills the
+  column, photo takes a whole column sized by its aspect. Data sources (Photos, EventKit, Claude, process scan) run
+  only for placed widgets. The old per-card switches (`miniDisplayPhotosEnabled`,
+  `…TopAppsEnabled`, `…CalendarEnabled`, `…RemindersEnabled`, `…ClaudeEnabled`) are
+  read once by `MiniDisplayLayout.migrated` when no layout is saved.
+- Themes: `SnappyCore/MiniDisplayTheme.swift` (Midnight default, Graphite, Ocean, Forest,
+  Sunset, Arctic, Amber Terminal, Paper light) — background, card tint, text, per-widget
+  accents and good/warning/critical status colours; `MiniDisplayThemeTests` enforces
+  WCAG contrast (text ≥ 7:1, dim text and accents ≥ 3:1) for every theme. Picked in
+  Settings ▸ Mini Display (`miniDisplayTheme` = theme id); the renderer never hard-codes
+  colours (calendar dots keep each calendar's own colour).
+- Photos widget:
   `MiniDisplayPhotoSource` shows a random image from the chosen album
-  (`miniDisplayPhotosAlbum`, "" = All Photos; menu "Album" submenu / Settings) every
+  (`miniDisplayPhotosAlbum`, "" = All Photos; Settings "Album" picker) every
   `miniDisplayPhotosInterval` s (5 s–5 min), crossfading over 1 s — the engine runs
   at 20 fps only during the fade, otherwise 4 fps — in the
   full-height card at the right of the screen, shaped by `miniDisplayPhotosAspect`
-  (16:9 … 3:4, default 4:3; "Frame" submenu / Settings) (only photos stored on this Mac: with Optimize Mac
+  (16:9 … 3:4, default 4:3; Settings "Frame" picker) (only photos stored on this Mac: with Optimize Mac
   Storage, PhotoKit fails on cloud-only originals — 3164 / CloudPhotoLibrary
   1005 — so those are skipped and remembered); the dashboard cards shrink into the rest. Needs
   `NSPhotoLibraryUsageDescription` plus the
@@ -240,14 +262,13 @@ toggle that starts/stops streaming and frees the serial port) and a Settings sec
   (`Resources/Snappy.entitlements`, applied by `bundle.sh` under hardened
   runtime). Launch with `open` when testing — running the binary from a
   terminal attributes the Photos prompt to the terminal and access is denied.
-- Agenda card ("Calendar" / "Reminders" switches, `miniDisplayCalendarEnabled` /
-  `miniDisplayRemindersEnabled`): `MiniDisplayAgendaSource` reads EventKit (refresh
+- Calendar / Reminders widgets: `MiniDisplayAgendaSource` reads EventKit (refresh
   every 60 s + `EKEventStoreChanged`); selection/order/labels are pure in
   `SnappyCore/AgendaFormatting.swift`. Needs the `NSCalendars*`/`NSReminders*`
   usage strings and the `com.apple.security.personal-information.calendars`
   entitlement (covers reminders too).
-- Claude plan usage (status menu "Claude Code" section always; mini display card
-  via the "Claude Usage" switch, `miniDisplayClaudeEnabled`): `ClaudeLimitsMonitor`
+- Claude plan usage (mini display only, no menu section; runs only while placed,
+  via the `claude` widget — one slot: Session + Weekly rows; full height: two gauges): `ClaudeLimitsMonitor`
   shows Session (5hr) / Weekly (7 day) % + reset times, like Claude Code's
   "Account & Usage" panel. It reads Claude Code's Claude.ai login from the Keychain
   (service `Claude Code-credentials`; several items share that name — one may only
@@ -257,9 +278,9 @@ toggle that starts/stops streaming and frees the serial port) and a Settings sec
   every 5 min. It never refreshes the token (that would rotate Claude Code's refresh
   token); expired → shows a note and waits for Claude Code. Account email/org come
   from `~/.claude.json` `oauthAccount`; last values per account are kept in
-  `claudeLimitsByAccount` so rotated-out accounts still show their last-known usage.
+  `claudeLimitsByAccount` so a failed fetch still shows that account's last-known usage.
   Parsing/wording is pure in `SnappyCore/ClaudeLimits.swift`.
-- TOP APPS card ("Top Apps" switch, `miniDisplayTopAppsEnabled`): `MiniDisplayProcesses`
+- Top CPU / Top Memory widgets: `MiniDisplayProcesses`
   (libproc `proc_pid_rusage`, every 2 s, only while the card is on) → top 3 by CPU
   (% of the whole machine, same scale as the CPU card — not Activity Monitor's per-core %) and by memory footprint; only apps count: NSWorkspace Dock apps +
   non-Apple menu-bar apps, each process assigned to the **outermost** running app
