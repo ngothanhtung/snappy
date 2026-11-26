@@ -14,11 +14,18 @@ let package = Package(
             name: "SnappyCoreTests",
             dependencies: ["SnappyCore"]
         ),
+        // Runtime-resolved private display APIs (DisplayServices, IOAVService DDC,
+        // MonitorPanel rotation, CGVirtualDisplay, display enable/disable).
+        .target(
+            name: "SnappyDisplayPrivate",
+            linkerSettings: [.linkedFramework("IOKit"), .linkedFramework("CoreGraphics")]
+        ),
         // The menubar agent app.
         .executableTarget(
             name: "Snappy",
             dependencies: [
                 "SnappyCore",
+                "SnappyDisplayPrivate",
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
             ]
         ),

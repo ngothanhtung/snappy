@@ -41,7 +41,10 @@ Two SPM targets, split by testability:
   be tested.
 
 Control flow: `Main` (sets `.accessory` policy) → `AppDelegate` installs
-`StatusMenuController`, calls `HotkeyManager.registerAll()`, and requests
+`StatusMenuController` (the status item opens `StatusPanelController`: a
+four-column, menu-like non-activating panel — Snap (+ move to next/previous
+display) · Displays · Capture · Maintenance + Mini Display/Settings/About/Quit; non-activating so the user's
+app stays frontmost for window snapping), calls `HotkeyManager.registerAll()`, and requests
 Accessibility. A shortcut or menu item produces an `AppAction`, which
 `WindowManager.perform` dispatches: it builds a `Context` (focused window +
 its screen via `WindowEngine`/`ScreenProvider`), computes the target frame with
@@ -298,3 +301,32 @@ both driven by
 - Dev: set `SNAPPY_MINIDISPLAY_DEBUG_DIR=/some/dir` to get `minidisplay.log`
   and a `preview.jpg` of the frame being sent; otherwise logs go to NSLog
   (`Snappy: MiniDisplay:`).
+
+## Display Controls (BetterDisplay-style)
+
+Status panel ▸ Displays column: one row per display (click pops up an NSMenu
+from `DisplaysMenu`: contrast/volume/mute, Resolution, Refresh Rate, Rotation,
+Mirror, Set as Main Display, Disconnect…) followed by a brightness slider; then
+"Reconnect <name>" rows. Settings ▸ Displays (`DisplaySettingsView`) has the software
+dimming switch and each display's control method; hotkeys (brightness/volume/mute,
+no defaults) act on the display under the pointer and show `DisplayOSD`.
+
+- Private APIs live in the ObjC target `SnappyDisplayPrivate`, all resolved at
+  runtime (dlsym / NSClassFromString) — missing API ⇒ feature hidden:
+  DisplayServices (Apple display brightness), IOAVService (DDC on Apple
+  Silicon; Intel DDC is not implemented), CoreDisplay (`IODisplayLocation`,
+  product name), `CGSConfigureDisplayEnabled`, MonitorPanel `MPDisplay`
+  (rotation).
+- Pure/tested in SnappyCore: `DDC.swift` (packets, reply parsing, EISA vendor,
+  display ↔ I2C pairing — the framebuffer IORegistry path is decisive),
+  `DisplayModes.swift` (resolution/refresh menus, main-display origins),
+  `DisplayBrightness.swift` (1/16 steps, gamma dimming floor).
+- DDC timing (measured on Dell U4320Q / Samsung S32B80P): every request must be
+  written **twice** 10 ms apart, ~150 ms between transactions, ~60 ms before
+  reading the 11-byte reply, and never to two monitors at once — `DDCChannel`
+  uses one shared serial queue. `6E 80 BE` = null message (busy). Monitors
+  that don't answer brightness fall back to gamma-table software dimming.
+- **Disconnect safety** (a test once mirrored the main display away): never
+  disable a display in a mirror set or the last active one, confirm first,
+  `.forSession` only, ids persisted in `displaysDisabledBySnappy` and
+  re-enabled on quit and next launch.

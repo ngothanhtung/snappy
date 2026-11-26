@@ -24,6 +24,12 @@ extension KeyboardShortcuts.Name {
     // Raw name predates the "Mac Health" rename; kept so saved shortcuts survive.
     static let macHealth = Self("quickPanel")
     static let uninstallApps = Self("uninstallApps")
+    // Display controls act on the display under the mouse pointer.
+    static let brightnessUp   = Self("brightnessUp")
+    static let brightnessDown = Self("brightnessDown")
+    static let volumeUp       = Self("displayVolumeUp")
+    static let volumeDown     = Self("displayVolumeDown")
+    static let volumeMute     = Self("displayVolumeMute")
 }
 
 /// An action a shortcut (or menu item) can trigger.
@@ -35,6 +41,9 @@ enum AppAction {
     case cleanSystemJunk
     case toggleMacHealth
     case uninstallApps
+    case brightness(up: Bool)
+    case displayVolume(up: Bool)
+    case toggleDisplayMute
 }
 
 /// Pairs each action with its shortcut name and a human-readable title.
@@ -82,5 +91,14 @@ enum Bindings {
               action: .uninstallApps, symbol: "trash.square"),
     ]
 
-    static var all: [ActionBinding] { layouts + displays + capture + maintenance }
+    /// Hotkeys only (the menu has sliders instead); act on the display under the pointer.
+    static let displayControls: [ActionBinding] = [
+        .init(name: .brightnessUp, title: "Brightness Up", action: .brightness(up: true), symbol: "sun.max"),
+        .init(name: .brightnessDown, title: "Brightness Down", action: .brightness(up: false), symbol: "sun.min"),
+        .init(name: .volumeUp, title: "Display Volume Up", action: .displayVolume(up: true), symbol: "speaker.wave.3"),
+        .init(name: .volumeDown, title: "Display Volume Down", action: .displayVolume(up: false), symbol: "speaker.wave.1"),
+        .init(name: .volumeMute, title: "Display Mute", action: .toggleDisplayMute, symbol: "speaker.slash"),
+    ]
+
+    static var all: [ActionBinding] { layouts + displays + displayControls + capture + maintenance }
 }

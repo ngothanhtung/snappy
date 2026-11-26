@@ -3,100 +3,47 @@ import SwiftUI
 import KeyboardShortcuts
 import SnappyCore
 
-/// Owns the menu bar item and its menu, and hosts the settings window.
+/// Owns the menu bar item and its four-column drop-down panel, and hosts the settings window.
 @MainActor
 final class StatusMenuController: NSObject {
     private var statusItem: NSStatusItem!
+    private var panel: StatusPanelController!
     private var settingsWindow: NSWindow?
     private var settingsTabs: NSTabViewController?
 
     func install() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = MenuBarIcon.image()
-        statusItem.menu = buildMenu()
-    }
-
-    private func buildMenu() -> NSMenu {
-        let menu = NSMenu()
-
-        // Same grouping as the Settings sections.
-        menu.addItem(.sectionHeader(title: "Snap"))
-        addActionItems(Bindings.layouts, to: menu)
-        menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Displays"))
-        addActionItems(Bindings.displays, to: menu)
-        menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Capture"))
-        addActionItems(Bindings.capture, to: menu)
-
-        let openForEditing = NSMenuItem(
-            title: "Open File in Annotate\u{2026}",
-            action: #selector(openFileInAnnotate),
-            keyEquivalent: ""
-        )
-        openForEditing.target = self
-        openForEditing.image = NSImage(
-            systemSymbolName: "photo.badge.arrow.down",
-            accessibilityDescription: "Open File in Annotate"
-        )
-        menu.addItem(openForEditing)
-
-        menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Mini Display"))
-        MiniDisplayController.shared.makeMenuItems().forEach(menu.addItem)
-
-
-        menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Maintenance"))
-        addActionItems(Bindings.maintenance, to: menu)
-
-        menu.addItem(.separator())
-        let settings = NSMenuItem(title: "Settings\u{2026}", action: #selector(openSettings),
-                                  keyEquivalent: ",")
-        settings.target = self
-        settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
-        menu.addItem(settings)
-
-        let about = NSMenuItem(title: "About Snappy", action: #selector(showAbout),
-                               keyEquivalent: "")
-        about.target = self
-        about.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "About Snappy")
-        menu.addItem(about)
-
-        menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "Quit Snappy", action: #selector(quit),
-                                  keyEquivalent: "q")
-        quitItem.target = self
-        quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit Snappy")
-        menu.addItem(quitItem)
-        return menu
-    }
-
-    private func addActionItems(_ bindings: [ActionBinding], to menu: NSMenu) {
-        for binding in bindings {
-            let item = NSMenuItem(title: binding.title,
-                                  action: #selector(triggerAction(_:)),
-                                  keyEquivalent: "")
-            item.target = self
-            item.image = NSImage(systemSymbolName: binding.symbol,
-                                 accessibilityDescription: binding.title)
-            item.representedObject = binding.name.rawValue
-            item.setShortcut(for: binding.name)
-            menu.addItem(item)
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(togglePanel(_:))
+        statusItem.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
+        panel = StatusPanelController(commands: StatusPanelCommands(
+            openFileInAnnotate: { [weak self] in self?.openFileInAnnotate() },
+            openSettings: { [weak self] in self?.closePanelAndShowSettings(.general) },
+            showAbout: { [weak self] in self?.showAbout() },
+            quit: { NSApp.terminate(nil) }
+        ))
+        // Keep the panel sized to its content as displays come and go.
+        DisplayControlCenter.shared.addObserver { [weak self] in
+            // After SwiftUI has re-rendered the new content.
+            DispatchQueue.main.async { self?.panel.fitContent() }
         }
     }
 
-    @objc private func triggerAction(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let binding = Bindings.all.first(where: { $0.name.rawValue == raw }) else { return }
-        WindowManager.perform(binding.action)
+    @objc private func togglePanel(_ sender: NSStatusBarButton) {
+        panel.toggle(from: sender)
+    }
+
+    private func closePanelAndShowSettings(_ tab: SettingsTab) {
+        panel.close()
+        showSettings(tab)
     }
 
     @objc private func openSettings() {
         showSettings(.general)
     }
 
-    private func showSettings(_ tab: SettingsTab) {
+    func showSettings(_ tab: SettingsTab) {
         if settingsWindow == nil {
             // Standard Mac settings window: tabs as toolbar items; the window
             // resizes to each tab.
@@ -129,11 +76,11 @@ final class StatusMenuController: NSObject {
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
-    @objc private func openFileInAnnotate() {
+    private func openFileInAnnotate() {
         AnnotationEditorController.shared.chooseFileAndOpen()
     }
 
-    @objc private func showAbout() {
+    private func showAbout() {
         let credits = NSAttributedString(
             string: "Author: Tony Woo (ngothanhtung.it@gmail.com)",
             attributes: [
@@ -148,7 +95,4 @@ final class StatusMenuController: NSObject {
         ])
     }
 
-    @objc private func quit() {
-        NSApp.terminate(nil)
-    }
 }

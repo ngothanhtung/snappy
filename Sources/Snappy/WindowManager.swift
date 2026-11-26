@@ -24,6 +24,12 @@ enum WindowManager {
             MacHealthController.shared.toggle()
         case .uninstallApps:
             AppUninstallerController.shared.show()
+        case .brightness(let up):
+            DisplayControlCenter.shared.stepBrightness(up: up)
+        case .displayVolume(let up):
+            DisplayControlCenter.shared.stepVolume(up: up)
+        case .toggleDisplayMute:
+            DisplayControlCenter.shared.toggleMuteUnderMouse()
         }
     }
 

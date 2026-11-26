@@ -5,13 +5,14 @@ import SnappyCore
 
 /// Tabs of the Settings window (toolbar-style, like System Settings panes of other Mac apps).
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, shortcuts, miniDisplay, cloud
+    case general, shortcuts, displays, miniDisplay, cloud
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: return "General"
         case .shortcuts: return "Shortcuts"
+        case .displays: return "Displays"
         case .miniDisplay: return "Mini Display"
         case .cloud: return "Cloud"
         }
@@ -21,6 +22,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .shortcuts: return "keyboard"
+        case .displays: return "display.2"
         case .miniDisplay: return "rectangle.inset.filled"
         case .cloud: return "icloud.and.arrow.up"
         }
@@ -31,6 +33,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general: return CGSize(width: 520, height: 96)
         case .shortcuts: return CGSize(width: 520, height: 560)
+        case .displays: return CGSize(width: 520, height: 360)
         case .miniDisplay: return CGSize(width: 520, height: 640)
         case .cloud: return CGSize(width: 520, height: 520)
         }
@@ -57,6 +60,7 @@ struct SettingsView: View {
             switch tab {
             case .general: generalTab
             case .shortcuts: shortcutsTab
+            case .displays: DisplaySettingsView()
             case .miniDisplay: miniDisplayTab
             case .cloud: cloudTab
             }
@@ -85,6 +89,11 @@ struct SettingsView: View {
             }
             Section("Displays") {
                 ForEach(Bindings.displays, id: \.name) { binding in
+                    recorderRow(for: binding)
+                }
+            }
+            Section("Display Controls") {
+                ForEach(Bindings.displayControls, id: \.name) { binding in
                     recorderRow(for: binding)
                 }
             }

@@ -10,10 +10,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Prompt with the system dialog on first launch if not yet trusted.
         AccessibilityPermission.ensure(showSystemPrompt: true)
         MiniDisplayController.shared.startIfEnabled()
+        DisplayControlCenter.shared.start()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         // Close the panel session so it doesn't freeze on the last frame.
         MiniDisplayController.shared.shutdown()
+        // Reconnect disconnected displays and undo software dimming.
+        DisplayControlCenter.shared.shutdown()
     }
 }
