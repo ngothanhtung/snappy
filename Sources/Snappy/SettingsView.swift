@@ -83,12 +83,7 @@ struct SettingsView: View {
     private var shortcutsTab: some View {
         Form {
             Section("Snap") {
-                ForEach(Bindings.layouts, id: \.name) { binding in
-                    recorderRow(for: binding)
-                }
-            }
-            Section("Displays") {
-                ForEach(Bindings.displays, id: \.name) { binding in
+                ForEach(Bindings.layouts + Bindings.displays, id: \.name) { binding in
                     recorderRow(for: binding)
                 }
             }

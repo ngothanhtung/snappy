@@ -276,7 +276,10 @@ both driven by
   "Account & Usage" panel. It reads Claude Code's Claude.ai login from the Keychain
   (service `Claude Code-credentials`; several items share that name — one may only
   hold `mcpOAuth` — so it lists attributes first and opens the one under the macOS
-  user name / most recently modified) and calls the **undocumented** endpoint
+  user name / most recently modified — the secret is read by spawning
+  `/usr/bin/security find-generic-password -w`, **not** SecItemCopyMatching:
+  Claude Code writes the item with that tool, which resets its ACL on every
+  token refresh, so a direct read prompted for the login password repeatedly) and calls the **undocumented** endpoint
   `GET https://api.anthropic.com/api/oauth/usage` (`anthropic-beta: oauth-2025-04-20`)
   every 5 min. It never refreshes the token (that would rotate Claude Code's refresh
   token); expired → shows a note and waits for Claude Code. Account email/org come

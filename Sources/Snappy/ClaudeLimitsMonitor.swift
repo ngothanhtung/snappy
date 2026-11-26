@@ -219,19 +219,42 @@ final class ClaudeLimitsMonitor: ObservableObject {
             }
             .compactMap { $0[kSecAttrAccount as String] as? String }
         for acct in accounts {
-            let query: [CFString: Any] = [
-                kSecClass: kSecClassGenericPassword,
-                kSecAttrService: keychainService,
-                kSecAttrAccount: acct,
-                kSecReturnData: true,
-                kSecMatchLimit: kSecMatchLimitOne,
-            ]
-            var data: CFTypeRef?
-            guard SecItemCopyMatching(query as CFDictionary, &data) == errSecSuccess,
-                  let raw = data as? Data else { continue }
+            guard let raw = readWithSecurityTool(account: acct) else { continue }
             if let creds = ClaudeLimits.credentials(fromJSON: raw) { return creds }
         }
         return nil
+    }
+
+    /// Reads the item's secret through `/usr/bin/security`, the same tool
+    /// Claude Code uses to write it. Every token refresh rewrites the item and
+    /// resets its access list to the writer, so reading it from Snappy itself
+    /// asked for the login password again and again ("Always Allow" never
+    /// stuck); `/usr/bin/security` stays on the list, so this never prompts.
+    nonisolated private static func readWithSecurityTool(account: String) -> Data? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        p.arguments = ["find-generic-password", "-s", keychainService, "-a", account, "-w"]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = FileHandle.nullDevice
+        do { try p.run() } catch { return nil }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        guard p.terminationStatus == 0 else { return nil }
+        var text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        // `security -w` prints the secret as hex when it has non-printable bytes.
+        if !text.hasPrefix("{"), text.count % 2 == 0, text.allSatisfy(\.isHexDigit) {
+            var bytes = [UInt8]()
+            var i = text.startIndex
+            while i < text.endIndex {
+                let j = text.index(i, offsetBy: 2)
+                guard let b = UInt8(text[i..<j], radix: 16) else { return nil }
+                bytes.append(b)
+                i = j
+            }
+            text = String(decoding: bytes, as: UTF8.self)
+        }
+        return Data(text.utf8)
     }
 
     final class Box: @unchecked Sendable {
