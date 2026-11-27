@@ -74,7 +74,7 @@ final class DisplaysMenu: NSObject {
         menu.addItem(main)
 
         if DisplayConfigurator.canToggleDisplays {
-            menu.addItem(ActionItem("Disconnect\u{2026}", symbol: "eject") { [weak self] in
+            menu.addItem(ActionItem("Disconnect", symbol: "eject") { [weak self] in
                 self?.center.disconnect(d)
             })
         }

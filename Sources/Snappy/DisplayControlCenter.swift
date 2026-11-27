@@ -397,14 +397,8 @@ final class DisplayControlCenter: ObservableObject {
             alert.runModal()
             return
         }
-        let alert = NSAlert()
-        alert.messageText = "Disconnect \(d.name)?"
-        alert.informativeText = "The display turns off until you reconnect it from the Snappy menu. "
-            + "Quitting Snappy, logging out or restarting also brings it back."
-        alert.addButton(withTitle: "Disconnect")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        // No confirmation: it's undone from the panel's "Reconnect" row, and quitting
+        // Snappy, logging out or restarting also brings the display back.
         // Remember first, so a crash right after still reconnects on next launch.
         disabled[d.id] = d.name
         saveDisabled()

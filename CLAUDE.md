@@ -330,6 +330,6 @@ no defaults) act on the display under the pointer and show `DisplayOSD`.
   uses one shared serial queue. `6E 80 BE` = null message (busy). Monitors
   that don't answer brightness fall back to gamma-table software dimming.
 - **Disconnect safety** (a test once mirrored the main display away): never
-  disable a display in a mirror set or the last active one, confirm first,
+  disable a display in a mirror set or the last active one, no confirmation (Reconnect row undoes it),
   `.forSession` only, ids persisted in `displaysDisabledBySnappy` and
   re-enabled on quit and next launch.
